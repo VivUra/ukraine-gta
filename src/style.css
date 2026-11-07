@@ -1,0 +1,80 @@
+@font-face {
+  font-family: Gotham Pro;
+  src: url(assets/fonts/GothamPro-Black.woff) format("woff");
+  font-weight: 900;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: Gotham Pro;
+  src: url(assets/fonts/GothamPro.woff) format("woff");
+  font-weight: 400;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: Gotham Pro;
+  src: url(assets/fonts/GothamPro-Medium.woff) format("woff");
+  font-weight: 500;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: e-UkraineHead;
+  src: url(assets/fonts/e-UkraineHead-Bold.woff) format("woff");
+  font-weight: 700;
+  font-display: swap;
+}
+
+/* Xl - 1400 */
+/* LG - 1200 */
+/* MD - 992 */
+/* SM - 768 */
+/* XSM - 576 */
+
+* {
+  padding: 0;
+  margin: 0;
+  box-sizing: border-box;
+}
+
+:root {
+  --primary: #fffbef;
+  --main-bg: #0f0f16;
+  --gradient: linear-gradient(90deg, #ec2b1d 0%, #f17d36 100%);
+  --font-primary: "Gotham Pro", sans-serif;
+  --font-e-ukraine-head: "e-UkraineHead", san-serif;
+  --container-width: 1312px;
+  --container-padding: 16px;
+}
+
+a {
+  color: currentColor;
+  text-decoration: none;
+}
+
+img {
+  max-width: 100%;
+}
+
+ul {
+  list-style: none;
+}
+
+.container {
+  max-width: calc(var(--container-width) + var(--container-padding) * 2);
+  margin: 0 auto;
+  padding: 0 var(--container-padding);
+}
+
+html,
+body {
+  scroll-behavior: smooth;
+  background-color: var(--main-bg);
+}
+
+body {
+  color: var(--primary);
+  font-family: var(--font-primary);
+  font-size: 16px;
+}
