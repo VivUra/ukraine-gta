@@ -73,28 +73,26 @@ import HeaderSheet from './HeaderSheet.vue';
   z-index: 1000;
 }
 
-/* ОБГОРТКА: Збільшуємо min-height та вертикальні падінги */
+/* ОБГОРТКА: Додаємо flex-wrap для адаптивності */
 .header__wrapper {
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding-top: 24px;
-  /* Збільшено з 16px до 24px для простору */
   padding-bottom: 24px;
-  /* Збільшено з 16px до 24px */
   min-height: 100px;
-  /* Збільшено мінімальну висоту до 100px */
+  flex-wrap: wrap;
+  gap: 16px;
 }
 
 .header-left {
   display: flex;
+  align-items: center;
 }
 
 .header-logo {
   margin-right: 32px;
 }
-
-
 
 .logo-link {
   display: block;
@@ -111,6 +109,7 @@ import HeaderSheet from './HeaderSheet.vue';
   display: flex;
   align-items: center;
   gap: 32px;
+  flex-wrap: wrap;
 }
 
 .nav-link {
@@ -175,13 +174,43 @@ import HeaderSheet from './HeaderSheet.vue';
   align-items: center;
 }
 
+/* Адаптиви для малих екранів замість display: none */
 @media (max-width: 1199px) {
+  .header__wrapper {
+    padding-top: 16px;
+    padding-bottom: 16px;
+    min-height: auto;
+  }
+
   .header-nav {
-    display: none;
+    gap: 16px;
   }
 
   .header-actions {
-    display: none;
+    gap: 16px;
+  }
+}
+
+@media (max-width: 768px) {
+  .header__wrapper {
+    justify-content: center;
+  }
+
+  .header-logo {
+    margin-right: 0;
+  }
+
+  .logo-img {
+    height: 44px;
+  }
+
+  .nav-link {
+    font-size: 14px;
+  }
+
+  .btn-cabinet {
+    padding: 10px 20px;
+    font-size: 13px;
   }
 }
 </style>
