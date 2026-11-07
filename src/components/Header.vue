@@ -42,21 +42,42 @@
       <div class="header-actions">
         <Dropdown />
 
-        <button class="btn-cabinet">
+        <button class="btn-cabinet" type="button" @click="isAuthModalOpen = true">
           <span class="btn-icon">
             <Icon icon="carbon:user-avatar-filled" />
           </span>
-          <a href="https://ukraine-gta.com.ua/uk/cabinet/login" class="btn-text">Кабінет</a>
+          <span class="btn-text">
+            {{ currentUser ? currentUser.email.split('@')[0] : 'Кабінет' }}
+          </span>
         </button>
       </div>
     </div>
+
+    <!-- Модальне вікно авторизації -->
+    <AuthModal 
+      :isOpen="isAuthModalOpen" 
+      @close="isAuthModalOpen = false" 
+    />
   </header>
 </template>
 
 <script setup>
+import { ref, onMounted } from 'vue';
 import { Icon } from '@iconify/vue';
 import Dropdown from './Dropdown.vue';
 import HeaderSheet from './HeaderSheet.vue';
+import AuthModal from './AuthModal.vue';
+import { auth } from '../firebase.js';
+import { onAuthStateChanged } from 'firebase/auth';
+
+const isAuthModalOpen = ref(false);
+const currentUser = ref(null);
+
+onMounted(() => {
+  onAuthStateChanged(auth, (user) => {
+    currentUser.value = user;
+  });
+});
 </script>
 
 <style scoped>
@@ -97,7 +118,7 @@ import HeaderSheet from './HeaderSheet.vue';
 .logo-link {
   display: block;
   transition: opacity 0.2s ease;
-}
+} 
 
 .logo-img {
   height: 56px;
