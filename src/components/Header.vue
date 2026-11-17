@@ -47,13 +47,12 @@
             <Icon icon="carbon:user-avatar-filled" />
           </span>
           <span class="btn-text">
-            {{ currentUser ? currentUser.email.split('@')[0] : 'Кабінет' }}
+            {{ currentUser ? currentUser.nickname : 'Кабінет' }}
           </span>
         </button>
       </div>
     </div>
 
-    <!-- Модальне вікно авторизації -->
     <AuthModal 
       :isOpen="isAuthModalOpen" 
       @close="isAuthModalOpen = false" 
@@ -62,22 +61,14 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref } from 'vue';
 import { Icon } from '@iconify/vue';
 import Dropdown from './Dropdown.vue';
 import HeaderSheet from './HeaderSheet.vue';
 import AuthModal from './AuthModal.vue';
-import { auth } from '../firebase.js';
-import { onAuthStateChanged } from 'firebase/auth';
+import { currentUser } from '../authStore.js';
 
 const isAuthModalOpen = ref(false);
-const currentUser = ref(null);
-
-onMounted(() => {
-  onAuthStateChanged(auth, (user) => {
-    currentUser.value = user;
-  });
-});
 </script>
 
 <style scoped>
