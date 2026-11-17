@@ -1,24 +1,28 @@
 <template>
   <header class="header">
-    <div class="container header-container">
+    <div class="container header-inner">
       <div class="header-left">
         <HeaderSheet />
         <router-link to="/" class="logo">
           <img src="/favicon.svg" alt="Ukraine GTA" />
         </router-link>
 
-        <nav class="nav-links">
-          <router-link to="/" class="nav-item">
-            <Icon icon="majesticons:home" class="nav-icon" /> Головна
+        <nav class="nav-menu">
+          <router-link to="/" class="nav-link">
+            <Icon icon="majesticons:home" />
+            <span>Головна</span>
           </router-link>
-          <router-link to="/forum" class="nav-item">
-            <Icon icon="mynaui:chat-messages-solid" class="nav-icon" /> Форум
+          <router-link to="/forum" class="nav-link">
+            <Icon icon="mynaui:chat-messages-solid" />
+            <span>Форум</span>
           </router-link>
-          <a href="#" class="nav-item">
-            <Icon icon="mdi:shopping" class="nav-icon" /> Ігровий магазин
+          <a href="#" class="nav-link">
+            <Icon icon="mdi:shopping" />
+            <span>Ігровий магазин</span>
           </a>
-          <a href="#" class="nav-item">
-            <Icon icon="mdi:globe" class="nav-icon" /> WIKI
+          <a href="#" class="nav-link">
+            <Icon icon="mdi:globe" />
+            <span>WIKI</span>
           </a>
         </nav>
       </div>
@@ -26,10 +30,8 @@
       <div class="header-actions">
         <Dropdown />
 
-        <!-- Якщо користувач увійшов — відкривається фірмове меню профілю -->
         <AccountDropdown v-if="currentUser" />
 
-        <!-- Якщо гість — кнопка входу/реєстрації -->
         <button
           v-else
           class="btn-cabinet"
@@ -62,158 +64,87 @@ import { currentUser } from '../authStore.js';
 
 const isAuthModalOpen = ref(false);
 </script>
+
 <style scoped>
-/* Головний контейнер хедера */
 .header {
   width: 100%;
-  background-color: var(--main-bg);
-  border-bottom: 1px solid #1e2026;
-  user-select: none;
-
-  /* Фіксація зверху */
-  position: sticky;
-  top: 0;
+  padding: 18px 0;
+  position: relative;
   z-index: 1000;
 }
 
-/* ОБГОРТКА: Додаємо flex-wrap для адаптивності */
-.header__wrapper {
+.header-inner {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding-top: 24px;
-  padding-bottom: 24px;
-  min-height: 100px;
-  flex-wrap: wrap;
-  gap: 16px;
+  gap: 20px;
 }
 
 .header-left {
   display: flex;
   align-items: center;
+  gap: 28px;
 }
 
-.header-logo {
-  margin-right: 32px;
-}
-
-.logo-link {
-  display: block;
-  transition: opacity 0.2s ease;
-} 
-
-.logo-img {
-  height: 56px;
-  width: auto;
+.logo img {
+  height: 44px;
   display: block;
 }
 
-.header-nav {
+.nav-menu {
   display: flex;
   align-items: center;
-  gap: 32px;
-  flex-wrap: wrap;
+  gap: 24px;
 }
 
 .nav-link {
   display: flex;
   align-items: center;
-  gap: 10px;
-  color: #8a8d98;
-  font-family: var(--font-primary);
-  font-size: 16px;
+  gap: 8px;
+  color: #fff;
+  text-decoration: none;
   font-weight: 700;
-  transition: color 0.2s ease;
+  font-size: 15px;
+  transition: color 0.2s;
 }
 
 .nav-link:hover,
-.nav-link.active {
-  color: var(--primary);
-}
-
-.nav-icon {
-  font-size: 22px;
-  display: flex;
-  align-items: center;
+.nav-link.router-link-active {
+  color: #ff6b00;
 }
 
 .header-actions {
   display: flex;
   align-items: center;
-  gap: 32px;
-  flex-shrink: 0;
+  gap: 16px;
 }
 
-.btn-cabinet {
-  background: var(--gradient);
-  color: #ffffff;
+/* Повертаємо фірмовий вигляд помаранчевої кнопки для AccountDropdown */
+:deep(.btn-cabinet) {
+  background: linear-gradient(90deg, #ff3b30 0%, #ff6b00 100%);
+  color: #fff;
   border: none;
-  padding: 14px 36px;
+  padding: 10px 20px;
   border-radius: 8px;
-  font-family: var(--font-primary);
-  font-size: 15px;
-  font-weight: 900;
-  text-transform: uppercase;
-  letter-spacing: 0.7px;
+  font-weight: 800;
+  font-size: 14px;
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   cursor: pointer;
-  transition: all 0.2s ease;
-  box-shadow: 0 6px 20px rgba(236, 43, 29, 0.25);
+  text-transform: uppercase;
+  box-shadow: 0 4px 15px rgba(255, 59, 48, 0.35);
+  transition: transform 0.15s, opacity 0.2s;
 }
 
-.btn-cabinet:hover {
-  filter: brightness(1.1);
+:deep(.btn-cabinet:hover) {
+  opacity: 0.92;
+  transform: translateY(-1px);
 }
 
-.btn-cabinet:active {
-  transform: scale(0.96);
-}
-
-.btn-icon {
-  font-size: 20px;
-  display: flex;
-  align-items: center;
-}
-
-/* Адаптиви для малих екранів замість display: none */
-@media (max-width: 1199px) {
-  .header__wrapper {
-    padding-top: 16px;
-    padding-bottom: 16px;
-    min-height: auto;
-  }
-
-  .header-nav {
-    gap: 16px;
-  }
-
-  .header-actions {
-    gap: 16px;
-  }
-}
-
-@media (max-width: 768px) {
-  .header__wrapper {
-    justify-content: center;
-  }
-
-  .header-logo {
-    margin-right: 0;
-  }
-
-  .logo-img {
-    height: 44px;
-  }
-
-  .nav-link {
-    font-size: 14px;
-  }
-
-  .btn-cabinet {
-    padding: 10px 20px;
-    font-size: 13px;
+@media (max-width: 960px) {
+  .nav-menu {
+    display: none;
   }
 }
 </style>
