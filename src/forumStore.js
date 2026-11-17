@@ -86,7 +86,8 @@ export const createTopic = async ({
   authorNickname,
   authorRole,
   authorAvatar = '',
-  isLocked = false
+  isLocked = false,
+  isPinned = false
 }) => {
   if (!title.trim() || !content.trim()) {
     throw new Error('Заповніть заголовок та текст теми.')
@@ -101,6 +102,7 @@ export const createTopic = async ({
     authorAvatar: authorAvatar,
     authorRole: authorRole || 'player',
     isLocked: isLocked,
+    isPinned: isPinned,
     views: 1,
     dateText: new Date().toLocaleString('uk-UA', {
       day: '2-digit',
@@ -111,6 +113,11 @@ export const createTopic = async ({
     }),
     createdAt: serverTimestamp()
   })
+}
+
+// Оновлення теми: текст, заголовок, тег (префікс), закріплення, закриття
+export const updateTopic = async (topicId, updates) => {
+  await updateDoc(doc(db, 'topics', topicId), updates)
 }
 
 export const incrementTopicViews = async (topicId) => {

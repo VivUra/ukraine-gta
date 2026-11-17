@@ -36,7 +36,6 @@
         </div>
 
         <div class="admin-controls">
-          <!-- Створення розділів/підрозділів: КА (7 рівень) і вище -->
           <button
             v-if="canManageNodes"
             class="btn-admin-secondary"
@@ -46,7 +45,6 @@
             {{ activeNode ? '+ Створити підрозділ' : '+ Створити розділ' }}
           </button>
 
-          <!-- Створення тем: Мол.Адміністратор (4 рівень) і вище -->
           <button
             v-if="activeNode && canCreateTopics"
             class="btn-admin-primary"
@@ -62,7 +60,7 @@
       </div>
 
       <!-- ========================================================= -->
-      <!-- РЕЖИМ 3: СТОРІНКА ВІДКРИТОЇ ТЕМИ З ПЛАШКАМИ РОЛЕЙ 1..11   -->
+      <!-- РЕЖИМ 3: СТОРІНКА ВІДКРИТОЇ ТЕМИ                           -->
       <!-- ========================================================= -->
       <div v-else-if="activeTopic" class="thread-view">
         <div class="thread-header-block">
@@ -82,14 +80,36 @@
             <span>•</span>
             <span><Icon icon="mdi:clock-outline" /> {{ activeTopic.dateText }}</span>
 
-            <!-- Видалення теми: Старший модератор (3 рівень) і вище -->
-            <button
-              v-if="canDeleteTopics"
-              class="btn-delete-small"
-              @click="handleDeleteTopic(activeTopic.id)"
-            >
-              Видалити тему
-            </button>
+            <!-- Панель керування темою (для автора або модераторів 2+ рівня) -->
+            <div v-if="canEditTopic(activeTopic)" class="topic-manage-bar">
+              <button
+                type="button"
+                class="btn-topic-tool"
+                @click="openEditTopicModal(activeTopic)"
+              >
+                <Icon icon="mdi:pencil-outline" /> Редагувати / Тег
+              </button>
+
+              <button
+                v-if="canPinTopics"
+                type="button"
+                class="btn-topic-tool"
+                :class="{ 'tool-active': activeTopic.isPinned }"
+                @click="toggleTopicPin(activeTopic)"
+              >
+                <Icon icon="mdi:pin" />
+                {{ activeTopic.isPinned ? 'Відкріпити' : 'Закріпити вгорі' }}
+              </button>
+
+              <button
+                v-if="canDeleteTopics"
+                type="button"
+                class="btn-delete-small"
+                @click="handleDeleteTopic(activeTopic.id)"
+              >
+                Видалити тему
+              </button>
+            </div>
           </div>
 
           <div v-if="activeTopic.isLocked" class="locked-banner">
@@ -115,7 +135,6 @@
               {{ getUserTitle(activeTopic.author) }}
             </div>
 
-            <!-- ФІРМОВА КОЛЬОРОВА ПЛАШКА РОЛІ -->
             <span
               class="ugta-role-banner"
               :class="getUserRoleInfo(activeTopic.author, activeTopic.authorRole).cssClass"
@@ -127,13 +146,27 @@
           <div class="post-body">
             <div class="post-top-meta">
               <span>{{ activeTopic.dateText }}</span>
-              <span class="post-number">#1</span>
+              <div class="post-right-actions">
+                <button
+                  v-if="canEditTopic(activeTopic)"
+                  type="button"
+                  class="btn-edit-inline"
+                  @click="openEditTopicModal(activeTopic)"
+                >
+                  <Icon icon="mdi:pencil" /> Редагувати
+                </button>
+                <span class="post-number">#1</span>
+              </div>
             </div>
 
             <div
               class="post-content formatted-content"
               v-html="formatPostHtml(activeTopic.content)"
             ></div>
+
+            <div v-if="activeTopic.editedText" class="edited-note">
+              Останнє редагування: {{ activeTopic.editedText }}
+            </div>
 
             <div v-if="getUserSignature(activeTopic.author)" class="post-signature">
               {{ getUserSignature(activeTopic.author) }}
@@ -163,7 +196,6 @@
               {{ getUserTitle(reply.author) }}
             </div>
 
-            <!-- ФІРМОВА КОЛЬОРОВА ПЛАШКА РОЛІ АВТОРА ВІДПОВІДІ -->
             <span
               class="ugta-role-banner"
               :class="getUserRoleInfo(reply.author, reply.authorRole).cssClass"
@@ -176,7 +208,6 @@
             <div class="post-top-meta">
               <span>{{ reply.dateText }}</span>
               <div class="post-right-actions">
-                <!-- Видалення відповіді: Модератор (2 рівень) і вище -->
                 <button
                   v-if="canDeleteReplies"
                   class="btn-delete-tiny"
@@ -199,7 +230,7 @@
           </div>
         </div>
 
-        <!-- ФОРМА ВІДПОВІДІ (ДЛЯ АВТОРИЗОВАНИХ ГРАВЦІВ У ВІДКРИТИХ ТЕМАХ АБО ДЛЯ АДМІНІВ) -->
+        <!-- ФОРМА ВІДПОВІДІ -->
         <div v-if="currentUser && (!activeTopic.isLocked || canCreateTopics)" class="reply-box">
           <div class="reply-avatar">
             <img v-if="currentUser.avatarUrl" :src="currentUser.avatarUrl" alt="Avatar" />
@@ -222,9 +253,10 @@
       </div>
 
       <!-- ========================================================= -->
-      <!-- РЕЖИМ 1 ТА 2: РОЗДІЛИ, ПІДРОЗДІЛИ ТА ВБУДОВАНИЙ РЕДАКТОР    -->
+      <!-- РЕЖИМ 1 ТА 2: РОЗДІЛИ, ПІДРОЗДІЛИ ТА СПИСОК ТЕМ           -->
       <!-- ========================================================= -->
       <template v-else>
+        <!-- СПИСОК ПІДРОЗДІЛІВ -->
         <div v-if="childNodes.length > 0" class="sections-list">
           <div
             v-for="node in childNodes"
@@ -293,7 +325,6 @@
                 <span v-else class="no-posts">Немає дописів</span>
               </div>
 
-              <!-- Видалення розділу: КА (7 рівень) і вище -->
               <button
                 v-if="canManageNodes"
                 class="btn-delete-icon"
@@ -306,7 +337,7 @@
           </div>
         </div>
 
-        <!-- ВБУДОВАНА ФОРМА ШВИДКОГО СТВОРЕННЯ ТЕМИ (МОЛ.АДМІН 4+ РІВЕНЬ) -->
+        <!-- ВБУДОВАНА ФОРМА ШВИДКОГО СТВОРЕННЯ ТЕМИ -->
         <div v-if="activeNode && canCreateTopics" class="quick-thread-box">
           <div class="qt-avatar">
             <img v-if="currentUser?.avatarUrl" :src="currentUser.avatarUrl" alt="Avatar" />
@@ -316,13 +347,10 @@
           <form @submit.prevent="handleCreateTopic" class="qt-form">
             <div class="qt-title-row">
               <select v-model="newTopicPrefix" class="qt-prefix-select">
-                <option value="">Без префікса</option>
-                <option value="В очікуванні">В очікуванні</option>
-                <option value="На розгляд">На розгляд</option>
-                <option value="Важливо">Важливо</option>
-                <option value="Розглянуто">Розглянуто</option>
-                <option value="База знань">База знань</option>
-                <option value="Інформація">Інформація</option>
+                <option value="">Без тегу</option>
+                <option v-for="tag in TOPIC_PREFIXES" :key="tag" :value="tag">
+                  {{ tag }}
+                </option>
               </select>
 
               <input
@@ -380,10 +408,17 @@
               ></textarea>
 
               <div class="qt-footer">
-                <label class="qt-lock-check">
-                  <input type="checkbox" v-model="newTopicLocked" />
-                  <span>Закрити тему для відповідей</span>
-                </label>
+                <div class="qt-checkboxes">
+                  <label v-if="canPinTopics" class="qt-lock-check">
+                    <input type="checkbox" v-model="newTopicPinned" />
+                    <span>Закріпити вгорі</span>
+                  </label>
+
+                  <label class="qt-lock-check">
+                    <input type="checkbox" v-model="newTopicLocked" />
+                    <span>Закрити для відповідей</span>
+                  </label>
+                </div>
 
                 <div class="qt-submit-group">
                   <button
@@ -402,15 +437,96 @@
           </form>
         </div>
 
-        <!-- СПИСОК ТЕМ У РОЗДІЛІ -->
+        <!-- СПИСОК ТЕМ У РОЗДІЛІ (СПОЧАТКУ ЗАКРІПЛЕНІ, ПОТІМ ЗВИЧАЙНІ) -->
         <div v-if="activeNode" class="threads-table-wrapper">
           <div v-if="currentNodeTopics.length === 0 && childNodes.length === 0" class="empty-state">
             У цьому розділі ще немає тем.
           </div>
 
           <div v-if="currentNodeTopics.length > 0" class="threads-container">
+            <!-- БЛОК 1: ЗАКРІПЛЕНІ ТЕМИ ВГОРІ -->
             <div
-              v-for="topic in currentNodeTopics"
+              v-for="topic in pinnedNodeTopics"
+              :key="topic.id"
+              class="thread-row pinned-row"
+              @click="openTopic(topic)"
+            >
+              <div class="thread-row-left">
+                <div class="thread-avatar">
+                  <img
+                    v-if="getUserAvatar(topic.author, topic.authorAvatar)"
+                    :src="getUserAvatar(topic.author, topic.authorAvatar)"
+                    alt="Avatar"
+                  />
+                  <span v-else>{{ topic.author.charAt(0).toUpperCase() }}</span>
+                </div>
+
+                <div class="thread-row-info">
+                  <div class="thread-row-title">
+                    <span
+                      v-if="topic.prefix"
+                      class="topic-prefix"
+                      :class="getPrefixClass(topic.prefix)"
+                    >
+                      {{ topic.prefix }}
+                    </span>
+                    <span class="thread-link-text">{{ topic.title }}</span>
+                    <Icon icon="mdi:pin" class="pin-icon" title="Закріплена тема" />
+                    <Icon v-if="topic.isLocked" icon="mdi:lock" class="lock-icon" />
+                  </div>
+                  <div class="thread-row-meta">
+                    <span class="author-nick">{{ topic.author }}</span> • {{ topic.dateText }}
+                  </div>
+                </div>
+              </div>
+
+              <div class="thread-row-right">
+                <div class="thread-counters">
+                  <div>Відповіді: <strong>{{ getTopicRepliesCount(topic.id) }}</strong></div>
+                  <div class="views-text">Перегляди: {{ topic.views || 1 }}</div>
+                </div>
+
+                <!-- Швидкі кнопки дій (редагувати / відкріпити / видалити) -->
+                <div v-if="canEditTopic(topic)" class="row-quick-actions" @click.stop>
+                  <button
+                    type="button"
+                    class="btn-row-icon"
+                    title="Редагувати тему / тег"
+                    @click="openEditTopicModal(topic)"
+                  >
+                    <Icon icon="mdi:pencil-outline" />
+                  </button>
+                  <button
+                    v-if="canPinTopics"
+                    type="button"
+                    class="btn-row-icon active-pin"
+                    title="Відкріпити тему"
+                    @click="toggleTopicPin(topic)"
+                  >
+                    <Icon icon="mdi:pin-off-outline" />
+                  </button>
+                  <button
+                    v-if="canDeleteTopics"
+                    type="button"
+                    class="btn-delete-icon"
+                    title="Видалити тему"
+                    @click="handleDeleteTopic(topic.id)"
+                  >
+                    <Icon icon="mdi:trash-can-outline" />
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- РОЗДІЛЮВАЧ МІЖ ЗАКРІПЛЕНИМИ ТА ЗВИЧАЙНИМИ ТЕМАМИ -->
+            <div
+              v-if="pinnedNodeTopics.length > 0 && regularNodeTopics.length > 0"
+              class="pinned-divider"
+            ></div>
+
+            <!-- БЛОК 2: ЗВИЧАЙНІ ТЕМИ -->
+            <div
+              v-for="topic in regularNodeTopics"
               :key="topic.id"
               class="thread-row"
               @click="openTopic(topic)"
@@ -449,15 +565,34 @@
                   <div class="views-text">Перегляди: {{ topic.views || 1 }}</div>
                 </div>
 
-                <!-- Видалення теми: Старший модератор (3 рівень) і вище -->
-                <button
-                  v-if="canDeleteTopics"
-                  class="btn-delete-icon"
-                  title="Видалити тему"
-                  @click.stop="handleDeleteTopic(topic.id)"
-                >
-                  <Icon icon="mdi:trash-can-outline" />
-                </button>
+                <div v-if="canEditTopic(topic)" class="row-quick-actions" @click.stop>
+                  <button
+                    type="button"
+                    class="btn-row-icon"
+                    title="Редагувати тему / тег"
+                    @click="openEditTopicModal(topic)"
+                  >
+                    <Icon icon="mdi:pencil-outline" />
+                  </button>
+                  <button
+                    v-if="canPinTopics"
+                    type="button"
+                    class="btn-row-icon"
+                    title="Закріпити вгорі"
+                    @click="toggleTopicPin(topic)"
+                  >
+                    <Icon icon="mdi:pin-outline" />
+                  </button>
+                  <button
+                    v-if="canDeleteTopics"
+                    type="button"
+                    class="btn-delete-icon"
+                    title="Видалити тему"
+                    @click="handleDeleteTopic(topic.id)"
+                  >
+                    <Icon icon="mdi:trash-can-outline" />
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -468,6 +603,70 @@
           <span v-if="canManageNodes">Натисніть «+ Створити розділ», щоб почати.</span>
         </div>
       </template>
+    </div>
+
+    <!-- ========================================================= -->
+    <!-- МОДАЛКА РЕДАГУВАННЯ ПУБЛІКАЦІЇ, ТЕГУ ТА ЗАКРІПЛЕННЯ       -->
+    <!-- ========================================================= -->
+    <div v-if="isEditModalOpen" class="modal-overlay" @click.self="isEditModalOpen = false">
+      <div class="modal-card large-modal">
+        <h3>Редагування публікації</h3>
+
+        <form @submit.prevent="handleSaveEditedTopic" class="admin-form">
+          <div class="form-row-2">
+            <div>
+              <label>Тег (префікс теми)</label>
+              <select v-model="editForm.prefix">
+                <option value="">Без тегу</option>
+                <option v-for="tag in TOPIC_PREFIXES" :key="tag" :value="tag">
+                  {{ tag }}
+                </option>
+              </select>
+            </div>
+
+            <div>
+              <label>Заголовок теми *</label>
+              <input v-model="editForm.title" type="text" required />
+            </div>
+          </div>
+
+          <label>Текст публікації *</label>
+          <div class="editor-toolbar">
+            <button type="button" @click="insertEditFormat('**', '**')"><b>B</b></button>
+            <button type="button" @click="insertEditFormat('*', '*')"><i>I</i></button>
+            <button type="button" @click="insertEditFormat('<u>', '</u>')"><u>U</u></button>
+            <button type="button" @click="insertEditFormat('### ', '')">Заголовок</button>
+            <button type="button" @click="insertEditFormat('<center>', '</center>')">По центру</button>
+            <button type="button" @click="insertEditFormat('\n---\n', '')">Лінія</button>
+          </div>
+
+          <textarea
+            ref="editTextarea"
+            v-model="editForm.content"
+            rows="9"
+            required
+          ></textarea>
+
+          <div class="edit-toggles-row">
+            <label v-if="canPinTopics" class="checkbox-label">
+              <input type="checkbox" v-model="editForm.isPinned" />
+              Закріпити публікацію вгорі розділу
+            </label>
+
+            <label class="checkbox-label">
+              <input type="checkbox" v-model="editForm.isLocked" />
+              Закрити тему для нових відповідей
+            </label>
+          </div>
+
+          <div class="modal-actions">
+            <button type="button" class="btn-cancel" @click="isEditModalOpen = false">
+              Скасувати
+            </button>
+            <button type="submit" class="btn-save">Зберегти зміни</button>
+          </div>
+        </form>
+      </div>
     </div>
 
     <!-- МОДАЛКА СТВОРЕННЯ РОЗДІЛУ АБО ПІДРОЗДІЛУ -->
@@ -482,7 +681,7 @@
           <input
             v-model="newNodeTitle"
             type="text"
-            :placeholder="activeNode ? 'Наприклад: Служба Безпеки України' : 'Наприклад: Державні організації'"
+            :placeholder="activeNode ? 'Наприклад: Національна поліція України' : 'Наприклад: Державні організації'"
             required
           />
 
@@ -490,7 +689,7 @@
           <input
             v-model="newNodeDesc"
             type="text"
-            placeholder="Наприклад: Форма подачі заявки"
+            placeholder="Наприклад: Інформація та заяви"
           />
 
           <div class="modal-actions">
@@ -504,7 +703,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import { Icon } from '@iconify/vue'
 import { currentUser } from '../authStore.js'
 import { getRoleInfo, getRoleLevel } from '../rolesConfig.js'
@@ -518,18 +717,38 @@ import {
   createNode,
   deleteNode,
   createTopic,
+  updateTopic,
   incrementTopicViews,
   deleteTopic,
   createReply,
   deleteReply
 } from '../forumStore.js'
 
+const TOPIC_PREFIXES = [
+  'Важливо',
+  'Інформація',
+  'База знань',
+  'На розгляд',
+  'В очікуванні',
+  'Розглянуто',
+  'Схвалено',
+  'Відмовлено'
+]
+
 // Ієрархія можливостей за рівнями 1..11
 const myLevel = computed(() => getRoleLevel(currentUser.value?.role))
-const canManageNodes = computed(() => myLevel.value >= 7)    // 7+ (КА, ЗГА, ГА, Розробник, Головний розробник)
+const canManageNodes = computed(() => myLevel.value >= 7)    // 7+ (КА і вище)
 const canCreateTopics = computed(() => myLevel.value >= 4)   // 4+ (Мол.Адміністратор і вище)
 const canDeleteTopics = computed(() => myLevel.value >= 3)   // 3+ (Старший модератор і вище)
+const canPinTopics = computed(() => myLevel.value >= 2)      // 2+ (Модератор і вище)
 const canDeleteReplies = computed(() => myLevel.value >= 2)  // 2+ (Модератор і вище)
+
+// Право редагувати тему: якщо це автор теми АБО модератор/адмін (2+ рівень)
+const canEditTopic = (topic) => {
+  if (!currentUser.value || !topic) return false
+  if (myLevel.value >= 2) return true
+  return topic.author?.toLowerCase() === currentUser.value.nickname?.toLowerCase()
+}
 
 const activeNodeId = ref(null)
 const activeTopicId = ref(null)
@@ -538,7 +757,6 @@ onMounted(() => {
   initForumListeners()
 })
 
-// Актуальні дані користувача (аватар, звання, підпис, плашка ролі)
 const getUserAvatar = (nickname, fallbackAvatar = '') => {
   if (!nickname) return fallbackAvatar
   const profile = usersByNick.value[nickname.toLowerCase()]
@@ -595,6 +813,15 @@ const currentNodeTopics = computed(() => {
   return forumTopics.value.filter((t) => t.nodeId === activeNodeId.value)
 })
 
+// Розділення на закріплені (вгорі) та звичайні теми
+const pinnedNodeTopics = computed(() =>
+  currentNodeTopics.value.filter((t) => Boolean(t.isPinned))
+)
+
+const regularNodeTopics = computed(() =>
+  currentNodeTopics.value.filter((t) => !t.isPinned)
+)
+
 const currentTopicReplies = computed(() => {
   if (!activeTopicId.value) return []
   return forumReplies.value.filter((r) => r.topicId === activeTopicId.value)
@@ -649,6 +876,7 @@ const openTopic = (topic) => {
   incrementTopicViews(topic.id)
 }
 
+// Створення розділу / підрозділу
 const isNodeModalOpen = ref(false)
 const newNodeTitle = ref('')
 const newNodeDesc = ref('')
@@ -675,12 +903,14 @@ const handleDeleteNode = async (id) => {
   }
 }
 
+// Швидке створення теми
 const isQuickTopicOpen = ref(false)
 const isPreviewMode = ref(false)
-const newTopicPrefix = ref('В очікуванні')
+const newTopicPrefix = ref('Важливо')
 const newTopicTitle = ref('')
 const newTopicContent = ref('')
 const newTopicLocked = ref(false)
+const newTopicPinned = ref(false)
 const topicTextarea = ref(null)
 
 const insertFormat = (before, after) => {
@@ -719,19 +949,84 @@ const handleCreateTopic = async () => {
     authorNickname: currentUser.value.nickname,
     authorRole: currentUser.value.role,
     authorAvatar: currentUser.value.avatarUrl || '',
-    isLocked: newTopicLocked.value
+    isLocked: newTopicLocked.value,
+    isPinned: newTopicPinned.value
   })
   newTopicTitle.value = ''
   newTopicContent.value = ''
   newTopicLocked.value = false
+  newTopicPinned.value = false
   isPreviewMode.value = false
   isQuickTopicOpen.value = false
+}
+
+// Редагування публікації, зміна тегу та закріплення
+const isEditModalOpen = ref(false)
+const editTextarea = ref(null)
+const editForm = reactive({
+  id: '',
+  title: '',
+  prefix: '',
+  content: '',
+  isPinned: false,
+  isLocked: false
+})
+
+const openEditTopicModal = (topic) => {
+  editForm.id = topic.id
+  editForm.title = topic.title
+  editForm.prefix = topic.prefix || ''
+  editForm.content = topic.content
+  editForm.isPinned = Boolean(topic.isPinned)
+  editForm.isLocked = Boolean(topic.isLocked)
+  isEditModalOpen.value = true
+}
+
+const insertEditFormat = (before, after) => {
+  const el = editTextarea.value
+  if (!el) return
+  const start = el.selectionStart
+  const end = el.selectionEnd
+  const selected = editForm.content.substring(start, end)
+  editForm.content =
+    editForm.content.substring(0, start) +
+    before +
+    selected +
+    after +
+    editForm.content.substring(end)
+}
+
+const handleSaveEditedTopic = async () => {
+  if (!editForm.id || !editForm.title.trim() || !editForm.content.trim()) return
+  await updateTopic(editForm.id, {
+    title: editForm.title.trim(),
+    prefix: editForm.prefix,
+    content: editForm.content.trim(),
+    isPinned: editForm.isPinned,
+    isLocked: editForm.isLocked,
+    editedText: new Date().toLocaleString('uk-UA', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    })
+  })
+  isEditModalOpen.value = false
+}
+
+const toggleTopicPin = async (topic) => {
+  await updateTopic(topic.id, {
+    isPinned: !topic.isPinned
+  })
 }
 
 const handleDeleteTopic = async (id) => {
   if (confirm('Видалити цю тему?')) {
     await deleteTopic(id)
-    activeTopicId.value = null
+    if (activeTopicId.value === id) {
+      activeTopicId.value = null
+    }
   }
 }
 
@@ -759,7 +1054,7 @@ const formatPostHtml = (raw) => {
 }
 
 const getPrefixClass = (prefix) => {
-  if (prefix === 'Важливо') return 'prefix-red'
+  if (prefix === 'Важливо' || prefix === 'Відмовлено') return 'prefix-red'
   if (prefix === 'База знань' || prefix === 'Схвалено') return 'prefix-green'
   if (prefix === 'Розглянуто') return 'prefix-lime'
   if (prefix === 'На розгляд') return 'prefix-orange'
@@ -1025,10 +1320,17 @@ const getPrefixClass = (prefix) => {
   gap: 10px;
 }
 
+.qt-checkboxes {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
 .qt-lock-check {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 7px;
   font-size: 13px;
   color: #9ca3af;
   cursor: pointer;
@@ -1195,27 +1497,28 @@ const getPrefixClass = (prefix) => {
   font-weight: 600;
 }
 
-/* ПРЕФІКСИ */
+/* ТЕГИ (ПРЕФІКСИ) */
 .topic-prefix {
   display: inline-block;
-  padding: 2px 7px;
+  padding: 2px 8px;
   border-radius: 4px;
   font-size: 11px;
-  font-weight: 700;
-  margin-right: 6px;
+  font-weight: 800;
+  margin-right: 7px;
+  letter-spacing: 0.2px;
 }
 .large-prefix {
   font-size: 13px;
-  padding: 4px 10px;
+  padding: 4px 11px;
 }
-.prefix-red { background: #d92d20; color: #fff; }
-.prefix-green { background: #0e9f6e; color: #fff; }
+.prefix-red { background: #dc2626; color: #fff; }
+.prefix-green { background: #059669; color: #fff; }
 .prefix-lime { background: #16a34a; color: #fff; }
-.prefix-orange { background: #f79009; color: #fff; }
+.prefix-orange { background: #f59e0b; color: #111827; }
 .prefix-gray { background: #e5e7eb; color: #111827; }
-.prefix-blue { background: #2e90fa; color: #fff; }
+.prefix-blue { background: #2563eb; color: #fff; }
 
-/* СПИСОК ТЕМ У РОЗДІЛІ */
+/* СПИСОК ТЕМ У РОЗДІЛІ + ЗАКРІПЛЕНІ ВГОРІ */
 .threads-container {
   background: #14161e;
   border: 1px solid #232733;
@@ -1230,6 +1533,7 @@ const getPrefixClass = (prefix) => {
   padding: 13px 18px;
   border-bottom: 1px solid #1e222d;
   cursor: pointer;
+  gap: 12px;
 }
 
 .thread-row:last-child {
@@ -1240,10 +1544,27 @@ const getPrefixClass = (prefix) => {
   background: #191c26;
 }
 
+.pinned-row {
+  background: #171a24;
+  border-left: 3px solid #ff6b00;
+}
+
+.pinned-row:hover {
+  background: #1d212e;
+}
+
+.pinned-divider {
+  height: 10px;
+  background: #0e1015;
+  border-top: 1px solid #262b38;
+  border-bottom: 1px solid #262b38;
+}
+
 .thread-row-left {
   display: flex;
   align-items: center;
   gap: 14px;
+  min-width: 0;
 }
 
 .thread-avatar {
@@ -1279,8 +1600,14 @@ const getPrefixClass = (prefix) => {
   color: #ff6b00;
 }
 
-.lock-icon {
+.pin-icon {
   margin-left: 8px;
+  color: #ff6b00;
+  font-size: 15px;
+}
+
+.lock-icon {
+  margin-left: 6px;
   color: #8a8d98;
   font-size: 14px;
 }
@@ -1293,7 +1620,8 @@ const getPrefixClass = (prefix) => {
 .thread-row-right {
   display: flex;
   align-items: center;
-  gap: 20px;
+  gap: 16px;
+  flex-shrink: 0;
 }
 
 .thread-counters {
@@ -1305,6 +1633,29 @@ const getPrefixClass = (prefix) => {
 .views-text {
   color: #6c7284;
   margin-top: 2px;
+}
+
+.row-quick-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.btn-row-icon {
+  background: #1c1f2b;
+  border: 1px solid #2e3446;
+  color: #9ca3af;
+  padding: 6px;
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+}
+
+.btn-row-icon:hover,
+.btn-row-icon.active-pin {
+  color: #ff6b00;
+  border-color: #ff6b00;
 }
 
 /* ВІДКРИТА ТЕМА */
@@ -1328,9 +1679,37 @@ const getPrefixClass = (prefix) => {
 .thread-submeta {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 10px;
   font-size: 13px;
   color: #8a8d98;
+}
+
+.topic-manage-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: 8px;
+  flex-wrap: wrap;
+}
+
+.btn-topic-tool {
+  background: #1c1f2b;
+  border: 1px solid #2f3548;
+  color: #e5e7eb;
+  padding: 4px 10px;
+  border-radius: 5px;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+}
+
+.btn-topic-tool:hover,
+.btn-topic-tool.tool-active {
+  border-color: #ff6b00;
+  color: #ff6b00;
 }
 
 .locked-banner {
@@ -1416,11 +1795,33 @@ const getPrefixClass = (prefix) => {
 .post-top-meta {
   display: flex;
   justify-content: space-between;
+  align-items: center;
   font-size: 12px;
   color: #6c7284;
   border-bottom: 1px solid #1e222d;
   padding-bottom: 10px;
   margin-bottom: 16px;
+}
+
+.post-right-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.btn-edit-inline {
+  background: none;
+  border: none;
+  color: #9ca3af;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+}
+
+.btn-edit-inline:hover {
+  color: #ff6b00;
 }
 
 .post-content {
@@ -1430,8 +1831,15 @@ const getPrefixClass = (prefix) => {
   flex: 1;
 }
 
+.edited-note {
+  margin-top: 14px;
+  font-size: 11px;
+  color: #6c7284;
+  text-align: right;
+}
+
 .post-signature {
-  margin-top: 24px;
+  margin-top: 18px;
   padding-top: 12px;
   border-top: 1px solid #232733;
   font-size: 12px;
@@ -1526,17 +1934,19 @@ const getPrefixClass = (prefix) => {
   background: none;
   border: 1px solid #3a2328;
   color: #ff4d4d;
-  padding: 7px;
+  padding: 6px;
   border-radius: 6px;
   cursor: pointer;
+  display: flex;
+  align-items: center;
 }
 
 .btn-delete-small {
   background: rgba(255, 77, 77, 0.15);
   border: 1px solid #ff4d4d;
   color: #ff4d4d;
-  padding: 3px 10px;
-  border-radius: 4px;
+  padding: 4px 10px;
+  border-radius: 5px;
   cursor: pointer;
   font-size: 12px;
 }
@@ -1546,7 +1956,6 @@ const getPrefixClass = (prefix) => {
   border: none;
   color: #ff4d4d;
   cursor: pointer;
-  margin-right: 10px;
   font-size: 12px;
 }
 
@@ -1577,6 +1986,12 @@ const getPrefixClass = (prefix) => {
   padding: 26px;
   width: 100%;
   max-width: 460px;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.large-modal {
+  max-width: 680px;
 }
 
 .admin-form {
@@ -1585,18 +2000,61 @@ const getPrefixClass = (prefix) => {
   gap: 12px;
 }
 
+.form-row-2 {
+  display: grid;
+  grid-template-columns: 180px 1fr;
+  gap: 12px;
+}
+
+.editor-toolbar {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.editor-toolbar button {
+  background: #1c1f2b;
+  border: 1px solid #2e3446;
+  color: #fff;
+  padding: 5px 10px;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.edit-toggles-row {
+  display: flex;
+  gap: 20px;
+  flex-wrap: wrap;
+  margin-top: 4px;
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: #e5e7eb !important;
+  cursor: pointer;
+}
+
 .admin-form label {
   font-size: 13px;
   color: #8a8d98;
 }
 
-.admin-form input {
+.admin-form input,
+.admin-form select,
+.admin-form textarea {
+  width: 100%;
   background: #0b0c10;
   border: 1px solid #232733;
   border-radius: 6px;
   padding: 11px 14px;
   color: #fff;
+  font-family: inherit;
   font-size: 14px;
+  box-sizing: border-box;
 }
 
 .modal-actions {
@@ -1644,11 +2102,18 @@ const getPrefixClass = (prefix) => {
     font-size: 18px;
     margin-bottom: 0;
   }
-  .section-card {
+  .section-card,
+  .thread-row {
     flex-direction: column;
     align-items: flex-start;
   }
-  .qt-title-row {
+  .thread-row-right {
+    width: 100%;
+    justify-content: space-between;
+  }
+  .qt-title-row,
+  .form-row-2 {
+    grid-template-columns: 1fr;
     flex-direction: column;
     align-items: stretch;
   }
