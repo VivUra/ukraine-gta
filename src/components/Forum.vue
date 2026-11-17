@@ -1,7 +1,7 @@
 <template>
   <section class="forum-page">
     <div class="container">
-      <!-- ХЛІБНІ КРИХТИ (ПОВНИЙ ШЛЯХ ВЛАДЕНОСТІ) -->
+      <!-- ХЛІБНІ КРИХТИ -->
       <div class="breadcrumbs">
         <span @click="goHome" class="crumb-link">
           <Icon icon="majesticons:home" class="crumb-home-icon" /> Форуми
@@ -24,7 +24,7 @@
         </template>
       </div>
 
-      <!-- ЗАГОЛОВОК ТА КНОПКИ АДМІНІСТРАТОРА -->
+      <!-- ВЕРХНЯ ПАНЕЛЬ РОЗДІЛУ -->
       <div v-if="!activeTopic" class="forum-top-bar">
         <div>
           <h1 class="forum-title">
@@ -41,19 +41,22 @@
             {{ activeNode ? '+ Створити підрозділ' : '+ Створити розділ' }}
           </button>
 
-          <button v-if="activeNode" class="btn-admin-primary" @click="isTopicModalOpen = true">
-            <Icon icon="mdi:pencil-plus" /> + Створити тему
+          <button
+            v-if="activeNode"
+            class="btn-admin-primary"
+            @click="isQuickTopicOpen = !isQuickTopicOpen"
+          >
+            <Icon icon="mdi:square-edit-outline" /> Створити тему
           </button>
         </div>
       </div>
 
-      <!-- СТАН ЗАВАНТАЖЕННЯ -->
       <div v-if="isForumLoading" class="empty-state">
         Завантаження структури форуму...
       </div>
 
       <!-- ========================================================= -->
-      <!-- РЕЖИМ 3: ПЕРЕГЛЯД КОНКРЕТНОЇ ТЕМИ (ЯК НА 3-МУ СКРІНШОТІ)  -->
+      <!-- РЕЖИМ 3: СТОРІНКА ВІДКРИТОЇ ТЕМИ З АВАТАРАМИ ТА ПІДПИСАМИ -->
       <!-- ========================================================= -->
       <div v-else-if="activeTopic" class="thread-view">
         <div class="thread-header-block">
@@ -86,13 +89,21 @@
           </div>
         </div>
 
-        <!-- ГОЛОВНИЙ ДОПИС АВТОРА -->
+        <!-- ГОЛОВНИЙ ДОПИС -->
         <div class="post-card">
           <aside class="post-author-sidebar">
             <div class="author-avatar">
-              {{ activeTopic.author.charAt(0).toUpperCase() }}
+              <img
+                v-if="getUserAvatar(activeTopic.author, activeTopic.authorAvatar)"
+                :src="getUserAvatar(activeTopic.author, activeTopic.authorAvatar)"
+                alt="Avatar"
+              />
+              <span v-else>{{ activeTopic.author.charAt(0).toUpperCase() }}</span>
             </div>
             <div class="author-name">{{ activeTopic.author }}</div>
+            <div class="author-custom-title">
+              {{ getUserTitle(activeTopic.author) }}
+            </div>
             <div
               class="author-role-badge"
               :class="activeTopic.authorBadge === 'Адміністратор' ? 'badge-admin' : 'badge-player'"
@@ -106,11 +117,20 @@
               <span>{{ activeTopic.dateText }}</span>
               <span class="post-number">#1</span>
             </div>
-            <div class="post-content formatted-content" v-html="formatPostHtml(activeTopic.content)"></div>
+
+            <div
+              class="post-content formatted-content"
+              v-html="formatPostHtml(activeTopic.content)"
+            ></div>
+
+            <!-- Підпис автора під повідомленням -->
+            <div v-if="getUserSignature(activeTopic.author)" class="post-signature">
+              {{ getUserSignature(activeTopic.author) }}
+            </div>
           </div>
         </div>
 
-        <!-- СПИСОК ВІДПОВІДЕЙ У ТЕМІ -->
+        <!-- ВІДПОВІДІ У ТЕМІ -->
         <div
           v-for="(reply, index) in currentTopicReplies"
           :key="reply.id"
@@ -118,9 +138,17 @@
         >
           <aside class="post-author-sidebar">
             <div class="author-avatar secondary-avatar">
-              {{ reply.author.charAt(0).toUpperCase() }}
+              <img
+                v-if="getUserAvatar(reply.author, reply.authorAvatar)"
+                :src="getUserAvatar(reply.author, reply.authorAvatar)"
+                alt="Avatar"
+              />
+              <span v-else>{{ reply.author.charAt(0).toUpperCase() }}</span>
             </div>
             <div class="author-name">{{ reply.author }}</div>
+            <div class="author-custom-title">
+              {{ getUserTitle(reply.author) }}
+            </div>
             <div
               class="author-role-badge"
               :class="reply.authorBadge === 'Адміністратор' ? 'badge-admin' : 'badge-player'"
@@ -143,14 +171,23 @@
                 <span class="post-number">#{{ index + 2 }}</span>
               </div>
             </div>
-            <div class="post-content formatted-content" v-html="formatPostHtml(reply.content)"></div>
+
+            <div
+              class="post-content formatted-content"
+              v-html="formatPostHtml(reply.content)"
+            ></div>
+
+            <div v-if="getUserSignature(reply.author)" class="post-signature">
+              {{ getUserSignature(reply.author) }}
+            </div>
           </div>
         </div>
 
-        <!-- ФОРМА ВІДПОВІДІ (ЯКЩО ТЕМА НЕ ЗАКРИТА АБО ЦЕ АДМІН) -->
+        <!-- ФОРМА ВІДПОВІДІ З АВАТАРОМ ПОТОЧНОГО КОРИСТУВАЧА -->
         <div v-if="currentUser && (!activeTopic.isLocked || isAdmin)" class="reply-box">
           <div class="reply-avatar">
-            {{ currentUser.nickname.charAt(0).toUpperCase() }}
+            <img v-if="currentUser.avatarUrl" :src="currentUser.avatarUrl" alt="Avatar" />
+            <span v-else>{{ currentUser.nickname.charAt(0).toUpperCase() }}</span>
           </div>
           <form @submit.prevent="handleSendReply" class="reply-form">
             <textarea
@@ -169,10 +206,10 @@
       </div>
 
       <!-- ========================================================= -->
-      <!-- РЕЖИМ 1 ТА 2: РОЗДІЛИ, ПІДРОЗДІЛИ ТА СПИСОК ТЕМ           -->
+      <!-- РЕЖИМ 1 ТА 2: РОЗДІЛИ, ПІДРОЗДІЛИ ТА ВБУДОВАНИЙ РЕДАКТОР    -->
       <!-- ========================================================= -->
       <template v-else>
-        <!-- СПИСОК ДОЧІРНІХ РОЗДІЛІВ / ПІДРОЗДІЛІВ -->
+        <!-- СПИСОК ПІДРОЗДІЛІВ -->
         <div v-if="childNodes.length > 0" class="sections-list">
           <div
             v-for="node in childNodes"
@@ -192,7 +229,6 @@
                   {{ node.description }}
                 </p>
 
-                <!-- КЛІКАБЕЛЬНІ ПІДРОЗДІЛИ НАСТУПНОГО РІВНЯ -->
                 <div v-if="getDirectChildren(node.id).length > 0" class="subforums-grid">
                   <button
                     v-for="sub in getDirectChildren(node.id)"
@@ -254,11 +290,110 @@
           </div>
         </div>
 
-        <!-- СПИСОК ТЕМ ВСЕРЕДИНІ ПОТОЧНОГО РОЗДІЛУ / ПІДРОЗДІЛУ -->
+        <!-- ВБУДОВАНА ФОРМА ШВИДКОГО СТВОРЕННЯ ТЕМИ (ЯК НА СКРІНШОТІ XENFORO) -->
+        <div v-if="activeNode && isAdmin" class="quick-thread-box">
+          <div class="qt-avatar">
+            <img v-if="currentUser?.avatarUrl" :src="currentUser.avatarUrl" alt="Avatar" />
+            <span v-else>{{ currentUser?.nickname?.charAt(0).toUpperCase() }}</span>
+          </div>
+
+          <form @submit.prevent="handleCreateTopic" class="qt-form">
+            <!-- Рядок вибору префікса + Заголовок теми -->
+            <div class="qt-title-row">
+              <select v-model="newTopicPrefix" class="qt-prefix-select">
+                <option value="">Без префікса</option>
+                <option value="В очікуванні">В очікуванні</option>
+                <option value="На розгляд">На розгляд</option>
+                <option value="Важливо">Важливо</option>
+                <option value="Розглянуто">Розглянуто</option>
+                <option value="База знань">База знань</option>
+                <option value="Інформація">Інформація</option>
+              </select>
+
+              <input
+                v-model="newTopicTitle"
+                type="text"
+                class="qt-title-input"
+                placeholder="Заголовок теми"
+                @focus="isQuickTopicOpen = true"
+                required
+              />
+            </div>
+
+            <!-- Розгорнутий редактор (відкривається при кліку на заголовок або кнопку) -->
+            <div v-if="isQuickTopicOpen || newTopicTitle.length > 0" class="qt-editor-body">
+              <div class="qt-toolbar">
+                <div class="qt-tools-left">
+                  <button type="button" title="Жирний" @click="insertFormat('**', '**')"><b>B</b></button>
+                  <button type="button" title="Курсив" @click="insertFormat('*', '*')"><i>I</i></button>
+                  <button type="button" title="Підкреслений" @click="insertFormat('<u>', '</u>')"><u>U</u></button>
+                  <button type="button" title="Закреслений" @click="insertFormat('<s>', '</s>')"><s>S</s></button>
+                  <span class="toolbar-sep"></span>
+                  <button type="button" title="Заголовок" @click="insertFormat('### ', '')">H</button>
+                  <button type="button" title="Центрування" @click="insertFormat('<center>', '</center>')">
+                    <Icon icon="mdi:format-align-center" />
+                  </button>
+                  <button type="button" title="Горизонтальна лінія" @click="insertFormat('\n---\n', '')">—</button>
+                  <button type="button" title="Вставити таблицю" @click="insertTableTemplate">
+                    <Icon icon="mdi:table-plus" /> Таблиця
+                  </button>
+                </div>
+
+                <button
+                  type="button"
+                  class="btn-preview-toggle"
+                  :class="{ active: isPreviewMode }"
+                  @click="isPreviewMode = !isPreviewMode"
+                >
+                  <Icon icon="mdi:eye-outline" /> Передогляд
+                </button>
+              </div>
+
+              <!-- Попередній перегляд або текстове поле -->
+              <div
+                v-if="isPreviewMode"
+                class="qt-preview-area formatted-content"
+                v-html="formatPostHtml(newTopicContent || 'Порожнє повідомлення...')"
+              ></div>
+
+              <textarea
+                v-else
+                ref="topicTextarea"
+                v-model="newTopicContent"
+                rows="6"
+                class="qt-textarea"
+                placeholder="Повідомлення..."
+                required
+              ></textarea>
+
+              <!-- Нижня панель дій -->
+              <div class="qt-footer">
+                <label class="qt-lock-check">
+                  <input type="checkbox" v-model="newTopicLocked" />
+                  <span>Закрити тему для відповідей</span>
+                </label>
+
+                <div class="qt-submit-group">
+                  <button
+                    type="button"
+                    class="btn-qt-cancel"
+                    @click="isQuickTopicOpen = false"
+                  >
+                    Згорнути
+                  </button>
+                  <button type="submit" class="btn-qt-submit">
+                    <Icon icon="mdi:square-edit-outline" /> Створити тему
+                  </button>
+                </div>
+              </div>
+            </div>
+          </form>
+        </div>
+
+        <!-- СПИСОК ТЕМ У РОЗДІЛІ З АВАТАРАМИ АВТОРІВ -->
         <div v-if="activeNode" class="threads-table-wrapper">
           <div v-if="currentNodeTopics.length === 0 && childNodes.length === 0" class="empty-state">
-            У цьому розділі ще немає підрозділів чи тем.
-            <span v-if="isAdmin">Скористайтеся кнопками зверху, щоб додати їх.</span>
+            У цьому розділі ще немає тем.
           </div>
 
           <div v-if="currentNodeTopics.length > 0" class="threads-container">
@@ -269,8 +404,14 @@
               @click="openTopic(topic)"
             >
               <div class="thread-row-left">
+                <!-- Аватарка автора теми у списку -->
                 <div class="thread-avatar">
-                  {{ topic.author.charAt(0).toUpperCase() }}
+                  <img
+                    v-if="getUserAvatar(topic.author, topic.authorAvatar)"
+                    :src="getUserAvatar(topic.author, topic.authorAvatar)"
+                    alt="Avatar"
+                  />
+                  <span v-else>{{ topic.author.charAt(0).toUpperCase() }}</span>
                 </div>
 
                 <div class="thread-row-info">
@@ -317,9 +458,7 @@
       </template>
     </div>
 
-    <!-- ========================================================= -->
-    <!-- МОДАЛКА 1: СТВОРЕННЯ РОЗДІЛУ АБО ПІДРОЗДІЛУ               -->
-    <!-- ========================================================= -->
+    <!-- МОДАЛКА СТВОРЕННЯ РОЗДІЛУ АБО ПІДРОЗДІЛУ -->
     <div v-if="isNodeModalOpen" class="modal-overlay" @click.self="isNodeModalOpen = false">
       <div class="modal-card">
         <h3>
@@ -339,74 +478,12 @@
           <input
             v-model="newNodeDesc"
             type="text"
-            placeholder="Наприклад: Форма подачі заявки або інформація"
+            placeholder="Наприклад: Форма подачі заявки"
           />
 
           <div class="modal-actions">
             <button type="button" class="btn-cancel" @click="isNodeModalOpen = false">Скасувати</button>
             <button type="submit" class="btn-save">Створити</button>
-          </div>
-        </form>
-      </div>
-    </div>
-
-    <!-- ========================================================= -->
-    <!-- МОДАЛКА 2: СТВОРЕННЯ ТЕМИ З ФОРМАТУВАННЯМ ТЕКСТУ          -->
-    <!-- ========================================================= -->
-    <div v-if="isTopicModalOpen" class="modal-overlay" @click.self="isTopicModalOpen = false">
-      <div class="modal-card large-modal">
-        <h3>Нова тема в розділі «{{ activeNode?.title }}»</h3>
-
-        <form @submit.prevent="handleCreateTopic" class="admin-form">
-          <div class="form-row-2">
-            <div>
-              <label>Префікс теми</label>
-              <select v-model="newTopicPrefix">
-                <option value="">Без префікса</option>
-                <option value="Важливо">Важливо (червоний)</option>
-                <option value="База знань">База знань (зелений)</option>
-                <option value="Інформація">Інформація (синій)</option>
-                <option value="Схвалено">Схвалено (зелений)</option>
-                <option value="Розглянуто">Розглянуто (салатовий)</option>
-                <option value="На розгляді">На розгляді (помаранчевий)</option>
-              </select>
-            </div>
-
-            <div class="checkbox-align">
-              <label class="checkbox-label">
-                <input type="checkbox" v-model="newTopicLocked" />
-                Закрити тему для відповідей гравців
-              </label>
-            </div>
-          </div>
-
-          <label>Заголовок теми *</label>
-          <input
-            v-model="newTopicTitle"
-            type="text"
-            placeholder="Наприклад: СБУ | Підрозділи"
-            required
-          />
-
-          <label>Текст допису * (підтримує виділення та HTML/Markdown теги)</label>
-          <div class="editor-toolbar">
-            <button type="button" @click="insertFormat('**', '**')"><b>B</b></button>
-            <button type="button" @click="insertFormat('### ', '')">Заголовок</button>
-            <button type="button" @click="insertFormat('\n---\n', '')">Лінія</button>
-            <button type="button" @click="insertTableTemplate">+ Таблиця підрозділів</button>
-          </div>
-
-          <textarea
-            ref="topicTextarea"
-            v-model="newTopicContent"
-            rows="9"
-            placeholder="Введіть текст правил, статуту або оголошення..."
-            required
-          ></textarea>
-
-          <div class="modal-actions">
-            <button type="button" class="btn-cancel" @click="isTopicModalOpen = false">Скасувати</button>
-            <button type="submit" class="btn-save">Опублікувати тему</button>
           </div>
         </form>
       </div>
@@ -422,6 +499,7 @@ import {
   forumNodes,
   forumTopics,
   forumReplies,
+  usersByNick,
   isForumLoading,
   initForumListeners,
   createNode,
@@ -442,17 +520,33 @@ onMounted(() => {
   initForumListeners()
 })
 
-// Поточний відкритий розділ/підрозділ
+// Отримання актуальної аватарки, звання і підпису автора з бази користувачів
+const getUserAvatar = (nickname, fallbackAvatar = '') => {
+  if (!nickname) return fallbackAvatar
+  const profile = usersByNick.value[nickname.toLowerCase()]
+  return profile?.avatarUrl || fallbackAvatar || ''
+}
+
+const getUserTitle = (nickname) => {
+  if (!nickname) return ''
+  const profile = usersByNick.value[nickname.toLowerCase()]
+  return profile?.title || ''
+}
+
+const getUserSignature = (nickname) => {
+  if (!nickname) return ''
+  const profile = usersByNick.value[nickname.toLowerCase()]
+  return profile?.signature || ''
+}
+
 const activeNode = computed(() =>
   forumNodes.value.find((n) => n.id === activeNodeId.value) || null
 )
 
-// Поточна відкрита тема
 const activeTopic = computed(() =>
   forumTopics.value.find((t) => t.id === activeTopicId.value) || null
 )
 
-// Побудова повного ланцюжка хлібних крихт від кореня до поточного підрозділу
 const breadcrumbNodes = computed(() => {
   const path = []
   let curr = activeNode.value
@@ -463,7 +557,6 @@ const breadcrumbNodes = computed(() => {
   return path
 })
 
-// Дочірні розділи/підрозділи для поточного рівня
 const childNodes = computed(() => {
   const parentId = activeNodeId.value || null
   return forumNodes.value.filter((n) => (n.parentId || null) === parentId)
@@ -473,19 +566,16 @@ const getDirectChildren = (nodeId) => {
   return forumNodes.value.filter((n) => n.parentId === nodeId)
 }
 
-// Теми безпосередньо в поточному розділі
 const currentNodeTopics = computed(() => {
   if (!activeNodeId.value) return []
   return forumTopics.value.filter((t) => t.nodeId === activeNodeId.value)
 })
 
-// Відповіді в поточній відкритій темі
 const currentTopicReplies = computed(() => {
   if (!activeTopicId.value) return []
   return forumReplies.value.filter((r) => r.topicId === activeTopicId.value)
 })
 
-// Рекурсивний підрахунок тем у розділі та всіх його підрозділах
 const getAllDescendantNodeIds = (nodeId) => {
   let ids = [nodeId]
   const children = getDirectChildren(nodeId)
@@ -518,7 +608,6 @@ const getTopicRepliesCount = (topicId) => {
   return forumReplies.value.filter((r) => r.topicId === topicId).length
 }
 
-// Навігація
 const goHome = () => {
   activeNodeId.value = null
   activeTopicId.value = null
@@ -527,6 +616,7 @@ const goHome = () => {
 const openNode = (node) => {
   activeTopicId.value = null
   activeNodeId.value = node.id
+  isQuickTopicOpen.value = false
 }
 
 const openTopic = (topic) => {
@@ -535,7 +625,7 @@ const openTopic = (topic) => {
   incrementTopicViews(topic.id)
 }
 
-// Модалка створення розділу/підрозділу
+// Створення розділу / підрозділу
 const isNodeModalOpen = ref(false)
 const newNodeTitle = ref('')
 const newNodeDesc = ref('')
@@ -562,9 +652,10 @@ const handleDeleteNode = async (id) => {
   }
 }
 
-// Модалка створення теми
-const isTopicModalOpen = ref(false)
-const newTopicPrefix = ref('Важливо')
+// Вбудований швидкий редактор створення теми
+const isQuickTopicOpen = ref(false)
+const isPreviewMode = ref(false)
+const newTopicPrefix = ref('В очікуванні')
 const newTopicTitle = ref('')
 const newTopicContent = ref('')
 const newTopicLocked = ref(false)
@@ -605,12 +696,14 @@ const handleCreateTopic = async () => {
     prefix: newTopicPrefix.value,
     authorNickname: currentUser.value.nickname,
     authorRole: currentUser.value.role,
+    authorAvatar: currentUser.value.avatarUrl || '',
     isLocked: newTopicLocked.value
   })
   newTopicTitle.value = ''
   newTopicContent.value = ''
   newTopicLocked.value = false
-  isTopicModalOpen.value = false
+  isPreviewMode.value = false
+  isQuickTopicOpen.value = false
 }
 
 const handleDeleteTopic = async (id) => {
@@ -628,16 +721,17 @@ const handleSendReply = async () => {
     topicId: activeTopicId.value,
     content: replyText.value,
     authorNickname: currentUser.value.nickname,
-    authorRole: currentUser.value.role
+    authorRole: currentUser.value.role,
+    authorAvatar: currentUser.value.avatarUrl || ''
   })
   replyText.value = ''
 }
 
-// Просте форматування тексту (жирний шрифт, заголовки, таблиці)
 const formatPostHtml = (raw) => {
   if (!raw) return ''
   return raw
     .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*(.*?)\*/g, '<em>$1</em>')
     .replace(/^### (.*$)/gim, '<h3 class="post-h3">$1</h3>')
     .replace(/^---$/gim, '<hr class="post-hr" />')
     .replace(/\n/g, '<br />')
@@ -647,7 +741,8 @@ const getPrefixClass = (prefix) => {
   if (prefix === 'Важливо') return 'prefix-red'
   if (prefix === 'База знань' || prefix === 'Схвалено') return 'prefix-green'
   if (prefix === 'Розглянуто') return 'prefix-lime'
-  if (prefix === 'На розгляді') return 'prefix-orange'
+  if (prefix === 'На розгляд') return 'prefix-orange'
+  if (prefix === 'В очікуванні') return 'prefix-gray'
   return 'prefix-blue'
 }
 </script>
@@ -676,7 +771,6 @@ const getPrefixClass = (prefix) => {
 
 .crumb-link {
   cursor: pointer;
-  transition: color 0.15s;
 }
 .crumb-link:hover {
   color: #ff3b30;
@@ -717,8 +811,8 @@ const getPrefixClass = (prefix) => {
   background: linear-gradient(90deg, #ff3b30 0%, #ff6b00 100%);
   color: #fff;
   border: none;
-  padding: 11px 18px;
-  border-radius: 8px;
+  padding: 10px 18px;
+  border-radius: 6px;
   font-weight: 700;
   font-size: 14px;
   display: flex;
@@ -731,8 +825,8 @@ const getPrefixClass = (prefix) => {
   background: #1c1f2b;
   color: #fff;
   border: 1px solid #32384d;
-  padding: 11px 18px;
-  border-radius: 8px;
+  padding: 10px 18px;
+  border-radius: 6px;
   font-weight: 700;
   font-size: 14px;
   display: flex;
@@ -741,8 +835,212 @@ const getPrefixClass = (prefix) => {
   cursor: pointer;
 }
 
-.btn-admin-secondary:hover {
+/* ВБУДОВАНА ПАНЕЛЬ ШВИДКОГО СТВОРЕННЯ ТЕМИ (QUICK THREAD) */
+.quick-thread-box {
+  display: flex;
+  gap: 14px;
+  background: #181a22;
+  border: 1px solid #282d3d;
+  border-radius: 8px;
+  padding: 14px 16px;
+  margin-bottom: 16px;
+}
+
+.qt-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 6px;
+  background: linear-gradient(135deg, #ff3b30, #ff6b00);
+  color: #fff;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.qt-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.qt-form {
+  flex: 1;
+  min-width: 0;
+}
+
+.qt-title-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.qt-prefix-select {
+  background: #252936;
+  border: 1px solid #353b4d;
+  color: #fff;
+  padding: 9px 12px;
+  border-radius: 5px;
+  font-size: 13px;
+  font-weight: 600;
+  outline: none;
+  cursor: pointer;
+}
+
+.qt-title-input {
+  flex: 1;
+  background: #111319;
+  border: 1px solid #2b3040;
+  color: #fff;
+  padding: 10px 14px;
+  border-radius: 5px;
+  font-size: 15px;
+  outline: none;
+}
+
+.qt-title-input:focus {
   border-color: #ff6b00;
+}
+
+.qt-editor-body {
+  margin-top: 12px;
+  border: 1px solid #2b3040;
+  border-radius: 6px;
+  background: #111319;
+  overflow: hidden;
+}
+
+.qt-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #1d202b;
+  border-bottom: 1px solid #2b3040;
+  padding: 6px 10px;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.qt-tools-left {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.qt-tools-left button {
+  background: none;
+  border: none;
+  color: #c5c8d4;
+  padding: 5px 9px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.qt-tools-left button:hover {
+  background: #2b3040;
+  color: #fff;
+}
+
+.toolbar-sep {
+  width: 1px;
+  height: 18px;
+  background: #32384d;
+  margin: 0 4px;
+}
+
+.btn-preview-toggle {
+  background: none;
+  border: 1px solid transparent;
+  color: #9ca3af;
+  padding: 5px 10px;
+  border-radius: 4px;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+}
+
+.btn-preview-toggle.active,
+.btn-preview-toggle:hover {
+  background: #282d3d;
+  color: #fff;
+}
+
+.qt-textarea {
+  width: 100%;
+  background: #111319;
+  border: none;
+  padding: 14px;
+  color: #fff;
+  font-family: inherit;
+  font-size: 14px;
+  resize: vertical;
+  outline: none;
+}
+
+.qt-preview-area {
+  min-height: 140px;
+  padding: 14px;
+  background: #14161e;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.qt-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 14px;
+  background: #181a22;
+  border-top: 1px solid #2b3040;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.qt-lock-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: #9ca3af;
+  cursor: pointer;
+}
+
+.qt-submit-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.btn-qt-cancel {
+  background: #252936;
+  border: none;
+  color: #c5c8d4;
+  padding: 9px 14px;
+  border-radius: 5px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.btn-qt-submit {
+  background: linear-gradient(90deg, #ff3b30, #ff6b00);
+  border: none;
+  color: #fff;
+  padding: 9px 18px;
+  border-radius: 5px;
+  font-weight: 700;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
 }
 
 /* РОЗДІЛИ ТА ПІДРОЗДІЛИ */
@@ -750,22 +1048,18 @@ const getPrefixClass = (prefix) => {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  margin-bottom: 28px;
+  margin-bottom: 24px;
 }
 
 .section-card {
   background: #14161e;
   border: 1px solid #232733;
-  border-radius: 10px;
-  padding: 18px 24px;
+  border-radius: 8px;
+  padding: 18px 22px;
   display: flex;
   justify-content: space-between;
   align-items: center;
   gap: 20px;
-}
-
-.section-card:hover {
-  border-color: #34394c;
 }
 
 .section-main {
@@ -791,7 +1085,6 @@ const getPrefixClass = (prefix) => {
   margin: 0 0 4px;
   color: #fff;
   cursor: pointer;
-  display: inline-block;
 }
 
 .section-name:hover {
@@ -804,12 +1097,11 @@ const getPrefixClass = (prefix) => {
   margin: 0 0 8px;
 }
 
-/* Клікабельні підрозділи */
 .subforums-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
   gap: 8px 16px;
-  margin-top: 10px;
+  margin-top: 8px;
 }
 
 .subforum-link-btn {
@@ -824,17 +1116,11 @@ const getPrefixClass = (prefix) => {
   gap: 6px;
   cursor: pointer;
   text-align: left;
-  transition: color 0.15s;
 }
 
 .subforum-link-btn:hover {
   color: #ff6b00;
   text-decoration: underline;
-}
-
-.sub-icon {
-  color: #6c7284;
-  flex-shrink: 0;
 }
 
 .section-stats {
@@ -877,9 +1163,6 @@ const getPrefixClass = (prefix) => {
 .last-post-title.clickable {
   cursor: pointer;
 }
-.last-post-title.clickable:hover {
-  color: #ff6b00;
-}
 
 .last-post-meta, .no-posts {
   font-size: 12px;
@@ -908,13 +1191,14 @@ const getPrefixClass = (prefix) => {
 .prefix-green { background: #0e9f6e; color: #fff; }
 .prefix-lime { background: #16a34a; color: #fff; }
 .prefix-orange { background: #f79009; color: #fff; }
+.prefix-gray { background: #e5e7eb; color: #111827; }
 .prefix-blue { background: #2e90fa; color: #fff; }
 
-/* ТАБЛИЦЯ ТЕМ ВСЕРЕДИНІ РОЗДІЛУ */
+/* СПИСОК ТЕМ У РОЗДІЛІ */
 .threads-container {
   background: #14161e;
   border: 1px solid #232733;
-  border-radius: 10px;
+  border-radius: 8px;
   overflow: hidden;
 }
 
@@ -922,10 +1206,9 @@ const getPrefixClass = (prefix) => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 14px 20px;
+  padding: 13px 18px;
   border-bottom: 1px solid #1e222d;
   cursor: pointer;
-  transition: background 0.15s;
 }
 
 .thread-row:last-child {
@@ -952,7 +1235,14 @@ const getPrefixClass = (prefix) => {
   display: flex;
   align-items: center;
   justify-content: center;
+  overflow: hidden;
   flex-shrink: 0;
+}
+
+.thread-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .thread-row-title {
@@ -996,7 +1286,7 @@ const getPrefixClass = (prefix) => {
   margin-top: 2px;
 }
 
-/* СТОРІНКА ВІДКРИТОЇ ТЕМИ (3-Й СКРІНШОТ) */
+/* ВІДКРИТА ТЕМА */
 .thread-header-block {
   margin-bottom: 20px;
 }
@@ -1039,13 +1329,13 @@ const getPrefixClass = (prefix) => {
   display: flex;
   background: #14161e;
   border: 1px solid #232733;
-  border-radius: 10px;
+  border-radius: 8px;
   margin-bottom: 16px;
   overflow: hidden;
 }
 
 .post-author-sidebar {
-  width: 190px;
+  width: 195px;
   background: #11131a;
   border-right: 1px solid #232733;
   padding: 24px 16px;
@@ -1057,29 +1347,41 @@ const getPrefixClass = (prefix) => {
 }
 
 .author-avatar {
-  width: 72px;
-  height: 72px;
-  border-radius: 10px;
+  width: 84px;
+  height: 84px;
+  border-radius: 8px;
   background: linear-gradient(135deg, #ff3b30, #ff6b00);
   color: #fff;
-  font-size: 28px;
+  font-size: 32px;
   font-weight: 900;
   display: flex;
   align-items: center;
   justify-content: center;
   margin-bottom: 12px;
+  overflow: hidden;
+}
+
+.author-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .secondary-avatar {
   background: #252a3a;
-  color: #fff;
 }
 
 .author-name {
   font-weight: 700;
   font-size: 15px;
   color: #5ea5ff;
-  margin-bottom: 6px;
+  margin-bottom: 4px;
+}
+
+.author-custom-title {
+  font-size: 11px;
+  color: #9ca3af;
+  margin-bottom: 8px;
 }
 
 .author-role-badge {
@@ -1120,9 +1422,18 @@ const getPrefixClass = (prefix) => {
   font-size: 15px;
   line-height: 1.65;
   color: #e5e7eb;
+  flex: 1;
 }
 
-/* Стилізація таблиць та заголовків всередині допису */
+.post-signature {
+  margin-top: 24px;
+  padding-top: 12px;
+  border-top: 1px solid #232733;
+  font-size: 12px;
+  color: #8a8d98;
+  font-style: italic;
+}
+
 .formatted-content :deep(.post-h3) {
   color: #f59e0b;
   text-align: center;
@@ -1155,13 +1466,12 @@ const getPrefixClass = (prefix) => {
   color: #f59e0b;
 }
 
-/* Форма відповіді */
 .reply-box {
   display: flex;
   gap: 16px;
   background: #14161e;
   border: 1px solid #232733;
-  border-radius: 10px;
+  border-radius: 8px;
   padding: 20px;
   margin-top: 24px;
 }
@@ -1175,7 +1485,14 @@ const getPrefixClass = (prefix) => {
   align-items: center;
   justify-content: center;
   font-weight: 800;
+  overflow: hidden;
   flex-shrink: 0;
+}
+
+.reply-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .reply-form {
@@ -1200,7 +1517,6 @@ const getPrefixClass = (prefix) => {
   justify-content: flex-end;
 }
 
-/* Кнопки видалення та модалки */
 .btn-delete-icon {
   background: none;
   border: 1px solid #3a2328;
@@ -1232,8 +1548,8 @@ const getPrefixClass = (prefix) => {
 .empty-state {
   background: #14161e;
   border: 1px dashed #2b3040;
-  border-radius: 10px;
-  padding: 40px;
+  border-radius: 8px;
+  padding: 36px;
   text-align: center;
   color: #8a8d98;
 }
@@ -1252,14 +1568,10 @@ const getPrefixClass = (prefix) => {
 .modal-card {
   background: #14161e;
   border: 1px solid #232733;
-  border-radius: 12px;
-  padding: 28px;
+  border-radius: 10px;
+  padding: 26px;
   width: 100%;
-  max-width: 480px;
-}
-
-.large-modal {
-  max-width: 680px;
+  max-width: 460px;
 }
 
 .admin-form {
@@ -1268,57 +1580,17 @@ const getPrefixClass = (prefix) => {
   gap: 12px;
 }
 
-.form-row-2 {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 16px;
-}
-
-.checkbox-align {
-  display: flex;
-  align-items: flex-end;
-  padding-bottom: 10px;
-}
-
-.checkbox-label {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  cursor: pointer;
-  color: #fff !important;
-}
-
-.editor-toolbar {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.editor-toolbar button {
-  background: #1c1f2b;
-  border: 1px solid #2e3446;
-  color: #fff;
-  padding: 5px 10px;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 12px;
-}
-
 .admin-form label {
   font-size: 13px;
   color: #8a8d98;
 }
 
-.admin-form input,
-.admin-form select,
-.admin-form textarea {
-  width: 100%;
+.admin-form input {
   background: #0b0c10;
   border: 1px solid #232733;
-  border-radius: 8px;
+  border-radius: 6px;
   padding: 11px 14px;
   color: #fff;
-  font-family: inherit;
   font-size: 14px;
 }
 
@@ -1334,7 +1606,7 @@ const getPrefixClass = (prefix) => {
   color: #fff;
   border: none;
   padding: 10px 18px;
-  border-radius: 8px;
+  border-radius: 6px;
   cursor: pointer;
 }
 
@@ -1343,7 +1615,7 @@ const getPrefixClass = (prefix) => {
   color: #fff;
   border: none;
   padding: 10px 18px;
-  border-radius: 8px;
+  border-radius: 6px;
   font-weight: 700;
   cursor: pointer;
 }
@@ -1361,14 +1633,18 @@ const getPrefixClass = (prefix) => {
     padding: 14px;
   }
   .author-avatar {
-    width: 44px;
-    height: 44px;
+    width: 48px;
+    height: 48px;
     font-size: 18px;
     margin-bottom: 0;
   }
   .section-card {
     flex-direction: column;
     align-items: flex-start;
+  }
+  .qt-title-row {
+    flex-direction: column;
+    align-items: stretch;
   }
 }
 </style>

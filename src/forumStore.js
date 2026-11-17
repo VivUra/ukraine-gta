@@ -13,15 +13,25 @@ import {
   serverTimestamp
 } from 'firebase/firestore'
 
-// Усі вузли (і головні розділи, і будь-які підрозділи)
 export const forumNodes = ref([])
-// Усі теми (дописи)
 export const forumTopics = ref([])
-// Усі відповіді в темах
 export const forumReplies = ref([])
+export const usersByNick = ref({})
 export const isForumLoading = ref(true)
 
 export const initForumListeners = () => {
+  // Слухаємо профілі користувачів (для актуальних аватарок, звань і підписів)
+  onSnapshot(collection(db, 'users'), (snapshot) => {
+    const map = {}
+    snapshot.docs.forEach((d) => {
+      const data = d.data()
+      if (data.nickname) {
+        map[data.nickname.toLowerCase()] = data
+      }
+    })
+    usersByNick.value = map
+  })
+
   const nodesQuery = query(collection(db, 'nodes'), orderBy('order', 'asc'))
   onSnapshot(nodesQuery, (snapshot) => {
     forumNodes.value = snapshot.docs.map((d) => ({
@@ -48,7 +58,6 @@ export const initForumListeners = () => {
   })
 }
 
-// Створити розділ (parentId = null) або підрозділ (parentId = id батьківського розділу)
 export const createNode = async ({ title, description = '', parentId = null }) => {
   const cleanTitle = title.trim()
   if (!cleanTitle) throw new Error('Введіть назву.')
@@ -62,13 +71,20 @@ export const createNode = async ({ title, description = '', parentId = null }) =
   })
 }
 
-// Видалити розділ або підрозділ
 export const deleteNode = async (nodeId) => {
   await deleteDoc(doc(db, 'nodes', nodeId))
 }
 
-// Створити тему в будь-якому розділі чи підрозділі
-export const createTopic = async ({ nodeId, title, content, prefix, authorNickname, authorRole, isLocked = false }) => {
+export const createTopic = async ({
+  nodeId,
+  title,
+  content,
+  prefix,
+  authorNickname,
+  authorRole,
+  authorAvatar = '',
+  isLocked = false
+}) => {
   if (!title.trim() || !content.trim()) {
     throw new Error('Заповніть заголовок та текст теми.')
   }
@@ -79,6 +95,7 @@ export const createTopic = async ({ nodeId, title, content, prefix, authorNickna
     content: content.trim(),
     prefix: prefix || '',
     author: authorNickname,
+    authorAvatar: authorAvatar,
     authorBadge: authorRole === 'admin' ? 'Адміністратор' : 'Гравець',
     isLocked: isLocked,
     views: 1,
@@ -93,30 +110,34 @@ export const createTopic = async ({ nodeId, title, content, prefix, authorNickna
   })
 }
 
-// Збільшити лічильник переглядів при відкритті теми
 export const incrementTopicViews = async (topicId) => {
   try {
     await updateDoc(doc(db, 'topics', topicId), {
       views: increment(1)
     })
   } catch (e) {
-    // Ігноруємо помилку, якщо немає прав на запис
+    // Ігноруємо помилку лічильника
   }
 }
 
-// Видалити тему
 export const deleteTopic = async (topicId) => {
   await deleteDoc(doc(db, 'topics', topicId))
 }
 
-// Додати відповідь у тему (для авторизованих гравців та адмінів)
-export const createReply = async ({ topicId, content, authorNickname, authorRole }) => {
+export const createReply = async ({
+  topicId,
+  content,
+  authorNickname,
+  authorRole,
+  authorAvatar = ''
+}) => {
   if (!content.trim()) throw new Error('Введіть текст повідомлення.')
 
   await addDoc(collection(db, 'replies'), {
     topicId,
     content: content.trim(),
     author: authorNickname,
+    authorAvatar: authorAvatar,
     authorBadge: authorRole === 'admin' ? 'Адміністратор' : 'Гравець',
     dateText: new Date().toLocaleString('uk-UA', {
       day: '2-digit',
@@ -129,7 +150,6 @@ export const createReply = async ({ topicId, content, authorNickname, authorRole
   })
 }
 
-// Видалити відповідь
 export const deleteReply = async (replyId) => {
   await deleteDoc(doc(db, 'replies', replyId))
 }
