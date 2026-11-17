@@ -35,14 +35,20 @@
           </p>
         </div>
 
-        <div v-if="isAdmin" class="admin-controls">
-          <button class="btn-admin-secondary" @click="openCreateNodeModal">
+        <div class="admin-controls">
+          <!-- Створення розділів/підрозділів: КА (7 рівень) і вище -->
+          <button
+            v-if="canManageNodes"
+            class="btn-admin-secondary"
+            @click="openCreateNodeModal"
+          >
             <Icon icon="mdi:folder-plus-outline" />
             {{ activeNode ? '+ Створити підрозділ' : '+ Створити розділ' }}
           </button>
 
+          <!-- Створення тем: Мол.Адміністратор (4 рівень) і вище -->
           <button
-            v-if="activeNode"
+            v-if="activeNode && canCreateTopics"
             class="btn-admin-primary"
             @click="isQuickTopicOpen = !isQuickTopicOpen"
           >
@@ -56,7 +62,7 @@
       </div>
 
       <!-- ========================================================= -->
-      <!-- РЕЖИМ 3: СТОРІНКА ВІДКРИТОЇ ТЕМИ З АВАТАРАМИ ТА ПІДПИСАМИ -->
+      <!-- РЕЖИМ 3: СТОРІНКА ВІДКРИТОЇ ТЕМИ З ПЛАШКАМИ РОЛЕЙ 1..11   -->
       <!-- ========================================================= -->
       <div v-else-if="activeTopic" class="thread-view">
         <div class="thread-header-block">
@@ -75,8 +81,10 @@
             <span><Icon icon="mdi:account" /> {{ activeTopic.author }}</span>
             <span>•</span>
             <span><Icon icon="mdi:clock-outline" /> {{ activeTopic.dateText }}</span>
+
+            <!-- Видалення теми: Старший модератор (3 рівень) і вище -->
             <button
-              v-if="isAdmin"
+              v-if="canDeleteTopics"
               class="btn-delete-small"
               @click="handleDeleteTopic(activeTopic.id)"
             >
@@ -100,16 +108,20 @@
               />
               <span v-else>{{ activeTopic.author.charAt(0).toUpperCase() }}</span>
             </div>
+
             <div class="author-name">{{ activeTopic.author }}</div>
-            <div class="author-custom-title">
+
+            <div v-if="getUserTitle(activeTopic.author)" class="author-custom-title">
               {{ getUserTitle(activeTopic.author) }}
             </div>
-            <div
-              class="author-role-badge"
-              :class="activeTopic.authorBadge === 'Адміністратор' ? 'badge-admin' : 'badge-player'"
+
+            <!-- ФІРМОВА КОЛЬОРОВА ПЛАШКА РОЛІ -->
+            <span
+              class="ugta-role-banner"
+              :class="getUserRoleInfo(activeTopic.author, activeTopic.authorRole).cssClass"
             >
-              {{ activeTopic.authorBadge || 'Адміністратор' }}
-            </div>
+              {{ getUserRoleInfo(activeTopic.author, activeTopic.authorRole).label }}
+            </span>
           </aside>
 
           <div class="post-body">
@@ -123,7 +135,6 @@
               v-html="formatPostHtml(activeTopic.content)"
             ></div>
 
-            <!-- Підпис автора під повідомленням -->
             <div v-if="getUserSignature(activeTopic.author)" class="post-signature">
               {{ getUserSignature(activeTopic.author) }}
             </div>
@@ -145,24 +156,29 @@
               />
               <span v-else>{{ reply.author.charAt(0).toUpperCase() }}</span>
             </div>
+
             <div class="author-name">{{ reply.author }}</div>
-            <div class="author-custom-title">
+
+            <div v-if="getUserTitle(reply.author)" class="author-custom-title">
               {{ getUserTitle(reply.author) }}
             </div>
-            <div
-              class="author-role-badge"
-              :class="reply.authorBadge === 'Адміністратор' ? 'badge-admin' : 'badge-player'"
+
+            <!-- ФІРМОВА КОЛЬОРОВА ПЛАШКА РОЛІ АВТОРА ВІДПОВІДІ -->
+            <span
+              class="ugta-role-banner"
+              :class="getUserRoleInfo(reply.author, reply.authorRole).cssClass"
             >
-              {{ reply.authorBadge || 'Гравець' }}
-            </div>
+              {{ getUserRoleInfo(reply.author, reply.authorRole).label }}
+            </span>
           </aside>
 
           <div class="post-body">
             <div class="post-top-meta">
               <span>{{ reply.dateText }}</span>
               <div class="post-right-actions">
+                <!-- Видалення відповіді: Модератор (2 рівень) і вище -->
                 <button
-                  v-if="isAdmin"
+                  v-if="canDeleteReplies"
                   class="btn-delete-tiny"
                   @click="deleteReply(reply.id)"
                 >
@@ -183,8 +199,8 @@
           </div>
         </div>
 
-        <!-- ФОРМА ВІДПОВІДІ З АВАТАРОМ ПОТОЧНОГО КОРИСТУВАЧА -->
-        <div v-if="currentUser && (!activeTopic.isLocked || isAdmin)" class="reply-box">
+        <!-- ФОРМА ВІДПОВІДІ (ДЛЯ АВТОРИЗОВАНИХ ГРАВЦІВ У ВІДКРИТИХ ТЕМАХ АБО ДЛЯ АДМІНІВ) -->
+        <div v-if="currentUser && (!activeTopic.isLocked || canCreateTopics)" class="reply-box">
           <div class="reply-avatar">
             <img v-if="currentUser.avatarUrl" :src="currentUser.avatarUrl" alt="Avatar" />
             <span v-else>{{ currentUser.nickname.charAt(0).toUpperCase() }}</span>
@@ -209,7 +225,6 @@
       <!-- РЕЖИМ 1 ТА 2: РОЗДІЛИ, ПІДРОЗДІЛИ ТА ВБУДОВАНИЙ РЕДАКТОР    -->
       <!-- ========================================================= -->
       <template v-else>
-        <!-- СПИСОК ПІДРОЗДІЛІВ -->
         <div v-if="childNodes.length > 0" class="sections-list">
           <div
             v-for="node in childNodes"
@@ -278,8 +293,9 @@
                 <span v-else class="no-posts">Немає дописів</span>
               </div>
 
+              <!-- Видалення розділу: КА (7 рівень) і вище -->
               <button
-                v-if="isAdmin"
+                v-if="canManageNodes"
                 class="btn-delete-icon"
                 title="Видалити розділ"
                 @click.stop="handleDeleteNode(node.id)"
@@ -290,15 +306,14 @@
           </div>
         </div>
 
-        <!-- ВБУДОВАНА ФОРМА ШВИДКОГО СТВОРЕННЯ ТЕМИ (ЯК НА СКРІНШОТІ XENFORO) -->
-        <div v-if="activeNode && isAdmin" class="quick-thread-box">
+        <!-- ВБУДОВАНА ФОРМА ШВИДКОГО СТВОРЕННЯ ТЕМИ (МОЛ.АДМІН 4+ РІВЕНЬ) -->
+        <div v-if="activeNode && canCreateTopics" class="quick-thread-box">
           <div class="qt-avatar">
             <img v-if="currentUser?.avatarUrl" :src="currentUser.avatarUrl" alt="Avatar" />
             <span v-else>{{ currentUser?.nickname?.charAt(0).toUpperCase() }}</span>
           </div>
 
           <form @submit.prevent="handleCreateTopic" class="qt-form">
-            <!-- Рядок вибору префікса + Заголовок теми -->
             <div class="qt-title-row">
               <select v-model="newTopicPrefix" class="qt-prefix-select">
                 <option value="">Без префікса</option>
@@ -320,7 +335,6 @@
               />
             </div>
 
-            <!-- Розгорнутий редактор (відкривається при кліку на заголовок або кнопку) -->
             <div v-if="isQuickTopicOpen || newTopicTitle.length > 0" class="qt-editor-body">
               <div class="qt-toolbar">
                 <div class="qt-tools-left">
@@ -349,7 +363,6 @@
                 </button>
               </div>
 
-              <!-- Попередній перегляд або текстове поле -->
               <div
                 v-if="isPreviewMode"
                 class="qt-preview-area formatted-content"
@@ -366,7 +379,6 @@
                 required
               ></textarea>
 
-              <!-- Нижня панель дій -->
               <div class="qt-footer">
                 <label class="qt-lock-check">
                   <input type="checkbox" v-model="newTopicLocked" />
@@ -390,7 +402,7 @@
           </form>
         </div>
 
-        <!-- СПИСОК ТЕМ У РОЗДІЛІ З АВАТАРАМИ АВТОРІВ -->
+        <!-- СПИСОК ТЕМ У РОЗДІЛІ -->
         <div v-if="activeNode" class="threads-table-wrapper">
           <div v-if="currentNodeTopics.length === 0 && childNodes.length === 0" class="empty-state">
             У цьому розділі ще немає тем.
@@ -404,7 +416,6 @@
               @click="openTopic(topic)"
             >
               <div class="thread-row-left">
-                <!-- Аватарка автора теми у списку -->
                 <div class="thread-avatar">
                   <img
                     v-if="getUserAvatar(topic.author, topic.authorAvatar)"
@@ -438,8 +449,9 @@
                   <div class="views-text">Перегляди: {{ topic.views || 1 }}</div>
                 </div>
 
+                <!-- Видалення теми: Старший модератор (3 рівень) і вище -->
                 <button
-                  v-if="isAdmin"
+                  v-if="canDeleteTopics"
                   class="btn-delete-icon"
                   title="Видалити тему"
                   @click.stop="handleDeleteTopic(topic.id)"
@@ -453,7 +465,7 @@
 
         <div v-else-if="childNodes.length === 0" class="empty-state">
           Розділів поки що немає.
-          <span v-if="isAdmin">Натисніть «+ Створити розділ», щоб почати.</span>
+          <span v-if="canManageNodes">Натисніть «+ Створити розділ», щоб почати.</span>
         </div>
       </template>
     </div>
@@ -495,6 +507,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { Icon } from '@iconify/vue'
 import { currentUser } from '../authStore.js'
+import { getRoleInfo, getRoleLevel } from '../rolesConfig.js'
 import {
   forumNodes,
   forumTopics,
@@ -511,7 +524,12 @@ import {
   deleteReply
 } from '../forumStore.js'
 
-const isAdmin = computed(() => currentUser.value?.role === 'admin')
+// Ієрархія можливостей за рівнями 1..11
+const myLevel = computed(() => getRoleLevel(currentUser.value?.role))
+const canManageNodes = computed(() => myLevel.value >= 7)    // 7+ (КА, ЗГА, ГА, Розробник, Головний розробник)
+const canCreateTopics = computed(() => myLevel.value >= 4)   // 4+ (Мол.Адміністратор і вище)
+const canDeleteTopics = computed(() => myLevel.value >= 3)   // 3+ (Старший модератор і вище)
+const canDeleteReplies = computed(() => myLevel.value >= 2)  // 2+ (Модератор і вище)
 
 const activeNodeId = ref(null)
 const activeTopicId = ref(null)
@@ -520,7 +538,7 @@ onMounted(() => {
   initForumListeners()
 })
 
-// Отримання актуальної аватарки, звання і підпису автора з бази користувачів
+// Актуальні дані користувача (аватар, звання, підпис, плашка ролі)
 const getUserAvatar = (nickname, fallbackAvatar = '') => {
   if (!nickname) return fallbackAvatar
   const profile = usersByNick.value[nickname.toLowerCase()]
@@ -537,6 +555,12 @@ const getUserSignature = (nickname) => {
   if (!nickname) return ''
   const profile = usersByNick.value[nickname.toLowerCase()]
   return profile?.signature || ''
+}
+
+const getUserRoleInfo = (nickname, fallbackRole = 'player') => {
+  if (!nickname) return getRoleInfo(fallbackRole)
+  const profile = usersByNick.value[nickname.toLowerCase()]
+  return getRoleInfo(profile?.role || fallbackRole)
 }
 
 const activeNode = computed(() =>
@@ -625,7 +649,6 @@ const openTopic = (topic) => {
   incrementTopicViews(topic.id)
 }
 
-// Створення розділу / підрозділу
 const isNodeModalOpen = ref(false)
 const newNodeTitle = ref('')
 const newNodeDesc = ref('')
@@ -652,7 +675,6 @@ const handleDeleteNode = async (id) => {
   }
 }
 
-// Вбудований швидкий редактор створення теми
 const isQuickTopicOpen = ref(false)
 const isPreviewMode = ref(false)
 const newTopicPrefix = ref('В очікуванні')
@@ -713,7 +735,6 @@ const handleDeleteTopic = async (id) => {
   }
 }
 
-// Відповіді в темі
 const replyText = ref('')
 const handleSendReply = async () => {
   if (!activeTopicId.value || !currentUser.value) return
@@ -835,7 +856,7 @@ const getPrefixClass = (prefix) => {
   cursor: pointer;
 }
 
-/* ВБУДОВАНА ПАНЕЛЬ ШВИДКОГО СТВОРЕННЯ ТЕМИ (QUICK THREAD) */
+/* ВБУДОВАНА ПАНЕЛЬ ШВИДКОГО СТВОРЕННЯ ТЕМИ */
 .quick-thread-box {
   display: flex;
   gap: 14px;
@@ -1335,7 +1356,7 @@ const getPrefixClass = (prefix) => {
 }
 
 .post-author-sidebar {
-  width: 195px;
+  width: 200px;
   background: #11131a;
   border-right: 1px solid #232733;
   padding: 24px 16px;
@@ -1382,23 +1403,7 @@ const getPrefixClass = (prefix) => {
   font-size: 11px;
   color: #9ca3af;
   margin-bottom: 8px;
-}
-
-.author-role-badge {
-  font-size: 11px;
-  font-weight: 700;
-  padding: 3px 10px;
-  border-radius: 4px;
-}
-
-.badge-admin {
-  background: #ff3b30;
-  color: #fff;
-}
-
-.badge-player {
-  background: #232733;
-  color: #9ca3af;
+  line-height: 1.3;
 }
 
 .post-body {
@@ -1629,7 +1634,8 @@ const getPrefixClass = (prefix) => {
     border-right: none;
     border-bottom: 1px solid #232733;
     flex-direction: row;
-    gap: 14px;
+    flex-wrap: wrap;
+    gap: 12px;
     padding: 14px;
   }
   .author-avatar {

@@ -16,19 +16,22 @@ import {
 export const forumNodes = ref([])
 export const forumTopics = ref([])
 export const forumReplies = ref([])
+export const allUsersList = ref([])
 export const usersByNick = ref({})
 export const isForumLoading = ref(true)
 
 export const initForumListeners = () => {
-  // Слухаємо профілі користувачів (для актуальних аватарок, звань і підписів)
   onSnapshot(collection(db, 'users'), (snapshot) => {
     const map = {}
+    const list = []
     snapshot.docs.forEach((d) => {
-      const data = d.data()
+      const data = { id: d.id, ...d.data() }
+      list.push(data)
       if (data.nickname) {
         map[data.nickname.toLowerCase()] = data
       }
     })
+    allUsersList.value = list
     usersByNick.value = map
   })
 
@@ -96,7 +99,7 @@ export const createTopic = async ({
     prefix: prefix || '',
     author: authorNickname,
     authorAvatar: authorAvatar,
-    authorBadge: authorRole === 'admin' ? 'Адміністратор' : 'Гравець',
+    authorRole: authorRole || 'player',
     isLocked: isLocked,
     views: 1,
     dateText: new Date().toLocaleString('uk-UA', {
@@ -115,9 +118,7 @@ export const incrementTopicViews = async (topicId) => {
     await updateDoc(doc(db, 'topics', topicId), {
       views: increment(1)
     })
-  } catch (e) {
-    // Ігноруємо помилку лічильника
-  }
+  } catch (e) {}
 }
 
 export const deleteTopic = async (topicId) => {
@@ -138,7 +139,7 @@ export const createReply = async ({
     content: content.trim(),
     author: authorNickname,
     authorAvatar: authorAvatar,
-    authorBadge: authorRole === 'admin' ? 'Адміністратор' : 'Гравець',
+    authorRole: authorRole || 'player',
     dateText: new Date().toLocaleString('uk-UA', {
       day: '2-digit',
       month: 'short',

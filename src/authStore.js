@@ -1,6 +1,6 @@
 import { ref } from 'vue'
 import { db } from './firebase.js'
-import { collection, addDoc, getDocs, query, where, doc, updateDoc } from 'firebase/firestore'
+import { collection, addDoc, getDocs, query, where, doc, updateDoc, onSnapshot } from 'firebase/firestore'
 
 export const currentUser = ref(
   JSON.parse(localStorage.getItem('ugta_current_user')) || null
@@ -9,6 +9,28 @@ export const currentUser = ref(
 const saveSession = (userObj) => {
   localStorage.setItem('ugta_current_user', JSON.stringify(userObj))
   currentUser.value = userObj
+}
+
+// Жива синхронізація поточного профілю з Firebase (щоб зміна ролі застосовувалась миттєво)
+export const initCurrentUserSync = () => {
+  if (!currentUser.value?.id) return
+  onSnapshot(doc(db, 'users', currentUser.value.id), (snap) => {
+    if (snap.exists()) {
+      const data = snap.data()
+      saveSession({
+        id: snap.id,
+        nickname: data.nickname,
+        role: data.role || 'player',
+        title: data.title || '',
+        avatarUrl: data.avatarUrl || '',
+        status: data.status || '',
+        signature: data.signature || '',
+        about: data.about || '',
+        reactions: data.reactions || 0,
+        points: data.points || 10
+      })
+    }
+  })
 }
 
 export const registerUser = async (nickname, password) => {
@@ -25,12 +47,13 @@ export const registerUser = async (nickname, password) => {
     throw new Error('Гравець із таким нікнеймом вже існує.')
   }
 
+  // При реєстрації кожен отримує 1 рівень — role: 'player' (Гравець)
   const newUserData = {
     nickname: cleanNick,
     nicknameLower: cleanNick.toLowerCase(),
     password: password,
     role: 'player',
-    title: 'Гравець UKRAINE GTA',
+    title: '',
     avatarUrl: '',
     status: '',
     signature: '',
@@ -42,6 +65,7 @@ export const registerUser = async (nickname, password) => {
 
   const docRef = await addDoc(usersRef, newUserData)
   saveSession({ id: docRef.id, ...newUserData })
+  initCurrentUserSync()
 }
 
 export const loginUser = async (nickname, password) => {
@@ -62,7 +86,7 @@ export const loginUser = async (nickname, password) => {
     id: userDoc.id,
     nickname: userData.nickname,
     role: userData.role || 'player',
-    title: userData.title || (userData.role === 'admin' ? 'Адміністратор UKRAINE GTA' : 'Гравець UKRAINE GTA'),
+    title: userData.title || '',
     avatarUrl: userData.avatarUrl || '',
     status: userData.status || '',
     signature: userData.signature || '',
@@ -70,9 +94,9 @@ export const loginUser = async (nickname, password) => {
     reactions: userData.reactions || 0,
     points: userData.points || 10
   })
+  initCurrentUserSync()
 }
 
-// Оновлення профілю (статус, аватар, підпис, звання, інформація)
 export const updateUserProfile = async (updates) => {
   if (!currentUser.value?.id) return
   const userRef = doc(db, 'users', currentUser.value.id)
@@ -84,7 +108,6 @@ export const updateUserProfile = async (updates) => {
   })
 }
 
-// Зміна пароля в базі Firebase
 export const changeUserPassword = async (oldPassword, newPassword) => {
   if (!currentUser.value?.id) return
   if (newPassword.length < 6) throw new Error('Новий пароль має бути не коротшим за 6 символів.')
@@ -102,6 +125,13 @@ export const changeUserPassword = async (oldPassword, newPassword) => {
 
   await updateDoc(doc(db, 'users', currentUser.value.id), {
     password: newPassword
+  })
+}
+
+// Видача ролі гравцю старшою адміністрацією / розробниками
+export const assignUserRole = async (targetUserId, newRoleKey) => {
+  await updateDoc(doc(db, 'users', targetUserId), {
+    role: newRoleKey
   })
 }
 
