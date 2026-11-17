@@ -1,40 +1,24 @@
 <template>
   <header class="header">
-    <div class="container header__wrapper">
+    <div class="container header-container">
       <div class="header-left">
-        <div class="header-logo">
-          <a href="#" class="logo-link" @click.prevent="$emit('open-home')">
-            <img src="https://ukraine-gta.com.ua/images/main-img/logo.png" alt="Ukraine GTA Logo" class="logo-img">
-          </a>
-        </div>
+        <HeaderSheet />
+        <router-link to="/" class="logo">
+          <img src="/favicon.svg" alt="Ukraine GTA" />
+        </router-link>
 
-        <nav class="header-nav">
-          <a href="#" class="nav-link active" @click.prevent="$emit('open-home')">
-            <span class="nav-icon">
-              <Icon icon="majesticons:home" />
-            </span>
-            <span class="nav-text">Головна</span>
+        <nav class="nav-links">
+          <router-link to="/" class="nav-item">
+            <Icon icon="majesticons:home" class="nav-icon" /> Головна
+          </router-link>
+          <router-link to="/forum" class="nav-item">
+            <Icon icon="mynaui:chat-messages-solid" class="nav-icon" /> Форум
+          </router-link>
+          <a href="#" class="nav-item">
+            <Icon icon="mdi:shopping" class="nav-icon" /> Ігровий магазин
           </a>
-
-          <a href="#" class="nav-link" @click.prevent="$emit('open-forum')">
-            <span class="nav-icon">
-              <Icon icon="mynaui:hash-square-solid" />
-            </span>
-            <span class="nav-text">Форум</span>
-          </a>
-
-          <a href="https://ukraine-gta.com.ua/uk/donate/" class="nav-link">
-            <span class="nav-icon">
-              <Icon icon="mage:bag-a-fill" />
-            </span>
-            <span class="nav-text">Ігровий магазин</span>
-          </a>
-
-          <a href="https://wiki.ukraine-gta.com.ua/" class="nav-link">
-            <span class="nav-icon">
-              <Icon icon="mdi:internet" />
-            </span>
-            <span class="nav-text">WIKI</span>
+          <a href="#" class="nav-item">
+            <Icon icon="mdi:globe" class="nav-icon" /> WIKI
           </a>
         </nav>
       </div>
@@ -42,20 +26,27 @@
       <div class="header-actions">
         <Dropdown />
 
-        <button class="btn-cabinet" type="button" @click="isAuthModalOpen = true">
+        <!-- Якщо користувач увійшов — відкривається фірмове меню профілю -->
+        <AccountDropdown v-if="currentUser" />
+
+        <!-- Якщо гість — кнопка входу/реєстрації -->
+        <button
+          v-else
+          class="btn-cabinet"
+          type="button"
+          @click="isAuthModalOpen = true"
+        >
           <span class="btn-icon">
             <Icon icon="carbon:user-avatar-filled" />
           </span>
-          <span class="btn-text">
-            {{ currentUser ? currentUser.nickname : 'Кабінет' }}
-          </span>
+          <span class="btn-text">Кабінет</span>
         </button>
       </div>
     </div>
 
-    <AuthModal 
-      :isOpen="isAuthModalOpen" 
-      @close="isAuthModalOpen = false" 
+    <AuthModal
+      :isOpen="isAuthModalOpen"
+      @close="isAuthModalOpen = false"
     />
   </header>
 </template>
@@ -66,11 +57,11 @@ import { Icon } from '@iconify/vue';
 import Dropdown from './Dropdown.vue';
 import HeaderSheet from './HeaderSheet.vue';
 import AuthModal from './AuthModal.vue';
+import AccountDropdown from './AccountDropdown.vue';
 import { currentUser } from '../authStore.js';
 
 const isAuthModalOpen = ref(false);
 </script>
-
 <style scoped>
 /* Головний контейнер хедера */
 .header {
