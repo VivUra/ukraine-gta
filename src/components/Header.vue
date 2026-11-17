@@ -1,28 +1,40 @@
 <template>
   <header class="header">
-    <div class="container header-inner">
+    <div class="container header__wrapper">
       <div class="header-left">
-        <HeaderSheet />
-        <router-link to="/" class="logo">
-          <img src="/favicon.svg" alt="Ukraine GTA" />
-        </router-link>
-
-        <nav class="nav-menu">
-          <router-link to="/" class="nav-link">
-            <Icon icon="majesticons:home" />
-            <span>Головна</span>
-          </router-link>
-          <router-link to="/forum" class="nav-link">
-            <Icon icon="mynaui:chat-messages-solid" />
-            <span>Форум</span>
-          </router-link>
-          <a href="#" class="nav-link">
-            <Icon icon="mdi:shopping" />
-            <span>Ігровий магазин</span>
+        <div class="header-logo">
+          <a href="#" class="logo-link" @click.prevent="$emit('open-home')">
+            <img src="https://ukraine-gta.com.ua/images/main-img/logo.png" alt="Ukraine GTA Logo" class="logo-img">
           </a>
-          <a href="#" class="nav-link">
-            <Icon icon="mdi:globe" />
-            <span>WIKI</span>
+        </div>
+
+        <nav class="header-nav">
+          <a href="#" class="nav-link active" @click.prevent="$emit('open-home')">
+            <span class="nav-icon">
+              <Icon icon="majesticons:home" />
+            </span>
+            <span class="nav-text">Головна</span>
+          </a>
+
+          <a href="#" class="nav-link" @click.prevent="$emit('open-forum')">
+            <span class="nav-icon">
+              <Icon icon="mynaui:hash-square-solid" />
+            </span>
+            <span class="nav-text">Форум</span>
+          </a>
+
+          <a href="https://ukraine-gta.com.ua/uk/donate/" class="nav-link">
+            <span class="nav-icon">
+              <Icon icon="mage:bag-a-fill" />
+            </span>
+            <span class="nav-text">Ігровий магазин</span>
+          </a>
+
+          <a href="https://wiki.ukraine-gta.com.ua/" class="nav-link">
+            <span class="nav-icon">
+              <Icon icon="mdi:internet" />
+            </span>
+            <span class="nav-text">WIKI</span>
           </a>
         </nav>
       </div>
@@ -32,12 +44,7 @@
 
         <AccountDropdown v-if="currentUser" />
 
-        <button
-          v-else
-          class="btn-cabinet"
-          type="button"
-          @click="isAuthModalOpen = true"
-        >
+        <button v-else class="btn-cabinet" type="button" @click="isAuthModalOpen = true">
           <span class="btn-icon">
             <Icon icon="carbon:user-avatar-filled" />
           </span>
@@ -46,9 +53,9 @@
       </div>
     </div>
 
-    <AuthModal
-      :isOpen="isAuthModalOpen"
-      @close="isAuthModalOpen = false"
+    <AuthModal 
+      :isOpen="isAuthModalOpen" 
+      @close="isAuthModalOpen = false" 
     />
   </header>
 </template>
@@ -66,85 +73,160 @@ const isAuthModalOpen = ref(false);
 </script>
 
 <style scoped>
+/* Головний контейнер хедера */
 .header {
   width: 100%;
-  padding: 18px 0;
-  position: relative;
+  background-color: var(--main-bg);
+  border-bottom: 1px solid #1e2026;
+  user-select: none;
+
+  /* Фіксація зверху */
+  position: sticky;
+  top: 0;
   z-index: 1000;
 }
 
-.header-inner {
+/* ОБГОРТКА: Додаємо flex-wrap для адаптивності */
+.header__wrapper {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 20px;
+  padding-top: 24px;
+  padding-bottom: 24px;
+  min-height: 100px;
+  flex-wrap: wrap;
+  gap: 16px;
 }
 
 .header-left {
   display: flex;
   align-items: center;
-  gap: 28px;
 }
 
-.logo img {
-  height: 44px;
+.header-logo {
+  margin-right: 32px;
+}
+
+.logo-link {
+  display: block;
+  transition: opacity 0.2s ease;
+} 
+
+.logo-img {
+  height: 56px;
+  width: auto;
   display: block;
 }
 
-.nav-menu {
+.header-nav {
   display: flex;
   align-items: center;
-  gap: 24px;
+  gap: 32px;
+  flex-wrap: wrap;
 }
 
 .nav-link {
   display: flex;
   align-items: center;
-  gap: 8px;
-  color: #fff;
-  text-decoration: none;
+  gap: 10px;
+  color: #8a8d98;
+  font-family: var(--font-primary);
+  font-size: 16px;
   font-weight: 700;
-  font-size: 15px;
-  transition: color 0.2s;
+  transition: color 0.2s ease;
 }
 
 .nav-link:hover,
-.nav-link.router-link-active {
-  color: #ff6b00;
+.nav-link.active {
+  color: var(--primary);
+}
+
+.nav-icon {
+  font-size: 22px;
+  display: flex;
+  align-items: center;
 }
 
 .header-actions {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 32px;
+  flex-shrink: 0;
 }
 
-/* Повертаємо фірмовий вигляд помаранчевої кнопки для AccountDropdown */
+.btn-cabinet,
 :deep(.btn-cabinet) {
-  background: linear-gradient(90deg, #ff3b30 0%, #ff6b00 100%);
-  color: #fff;
+  background: var(--gradient);
+  color: #ffffff;
   border: none;
-  padding: 10px 20px;
+  padding: 14px 36px;
   border-radius: 8px;
-  font-weight: 800;
-  font-size: 14px;
+  font-family: var(--font-primary);
+  font-size: 15px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.7px;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   cursor: pointer;
-  text-transform: uppercase;
-  box-shadow: 0 4px 15px rgba(255, 59, 48, 0.35);
-  transition: transform 0.15s, opacity 0.2s;
+  transition: all 0.2s ease;
+  box-shadow: 0 6px 20px rgba(236, 43, 29, 0.25);
 }
 
+.btn-cabinet:hover,
 :deep(.btn-cabinet:hover) {
-  opacity: 0.92;
-  transform: translateY(-1px);
+  filter: brightness(1.1);
 }
 
-@media (max-width: 960px) {
-  .nav-menu {
-    display: none;
+.btn-cabinet:active,
+:deep(.btn-cabinet:active) {
+  transform: scale(0.96);
+}
+
+.btn-icon {
+  font-size: 20px;
+  display: flex;
+  align-items: center;
+}
+
+/* Адаптиви для малих екранів замість display: none */
+@media (max-width: 1199px) {
+  .header__wrapper {
+    padding-top: 16px;
+    padding-bottom: 16px;
+    min-height: auto;
+  }
+
+  .header-nav {
+    gap: 16px;
+  }
+  .header-actions {
+    gap: 16px;
+  }
+}
+
+@media (max-width: 768px) {
+  .header__wrapper {
+    justify-content: center;
+  }
+
+  .header-logo {
+    margin-right: 0;
+  }
+
+  .logo-img {
+    height: 44px;
+  }
+
+  .nav-link {
+    font-size: 14px;
+  }
+
+  .btn-cabinet,
+  :deep(.btn-cabinet) {
+    padding: 10px 20px;
+    font-size: 13px;
   }
 }
 </style>
