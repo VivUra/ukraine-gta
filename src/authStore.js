@@ -1,17 +1,14 @@
 import { ref } from 'vue'
+import { db } from './firebase.js'
+import { collection, addDoc, getDocs, query, where } from 'firebase/firestore'
 
-// Реактивна змінна поточного користувача (підтягуємо з сесії при завантаженні)
+// Поточна активна сесія гравця
 export const currentUser = ref(
   JSON.parse(localStorage.getItem('ugta_current_user')) || null
 )
 
-// Отримати список усіх зареєстрованих акаунтів
-const getUsers = () => {
-  return JSON.parse(localStorage.getItem('ugta_users')) || []
-}
-
-// Реєстрація нового акаунта
-export const registerUser = (nickname, password) => {
+// Реєстрація нового гравця у хмарну базу Firestore
+export const registerUser = async (nickname, password) => {
   const cleanNick = nickname.trim()
   if (!cleanNick || !password) {
     throw new Error('Заповніть усі поля.')
@@ -23,49 +20,54 @@ export const registerUser = (nickname, password) => {
     throw new Error('Пароль має містити щонайменше 6 символів.')
   }
 
-  const users = getUsers()
-  const exists = users.some(
-    (u) => u.nickname.toLowerCase() === cleanNick.toLowerCase()
-  )
+  const usersRef = collection(db, 'users')
+  
+  // Перевіряємо в базі, чи не зайнятий нікнейм
+  const q = query(usersRef, where('nicknameLower', '==', cleanNick.toLowerCase()))
+  const snapshot = await getDocs(q)
 
-  if (exists) {
-    throw new Error('Гравець із таким нікнеймом вже зареєстрований.')
+  if (!snapshot.empty) {
+    throw new Error('Гравець із таким нікнеймом вже існує.')
   }
 
-  const newUser = {
-    id: Date.now(),
+  // Записуємо нового гравця в базу даних
+  const docRef = await addDoc(usersRef, {
     nickname: cleanNick,
+    nicknameLower: cleanNick.toLowerCase(),
     password: password,
-    createdAt: new Date().toISOString()
-  }
+    role: 'player',
+    createdAt: new Date().toLocaleString('uk-UA')
+  })
 
-  users.push(newUser)
-  localStorage.setItem('ugta_users', JSON.stringify(users))
-
-  // Автоматичний вхід після реєстрації
-  const sessionUser = { id: newUser.id, nickname: newUser.nickname }
+  const sessionUser = { id: docRef.id, nickname: cleanNick, role: 'player' }
   localStorage.setItem('ugta_current_user', JSON.stringify(sessionUser))
   currentUser.value = sessionUser
 }
 
-// Вхід в існуючий акаунт
-export const loginUser = (nickname, password) => {
+// Вхід гравця з перевіркою по хмарній базі
+export const loginUser = async (nickname, password) => {
   const cleanNick = nickname.trim()
-  const users = getUsers()
+  const usersRef = collection(db, 'users')
 
-  const user = users.find(
-    (u) => u.nickname.toLowerCase() === cleanNick.toLowerCase()
-  )
+  const q = query(usersRef, where('nicknameLower', '==', cleanNick.toLowerCase()))
+  const snapshot = await getDocs(q)
 
-  if (!user) {
+  if (snapshot.empty) {
     throw new Error('Акаунт з таким нікнеймом не знайдено.')
   }
 
-  if (user.password !== password) {
+  const userDoc = snapshot.docs[0]
+  const userData = userDoc.data()
+
+  if (userData.password !== password) {
     throw new Error('Невірний пароль.')
   }
 
-  const sessionUser = { id: user.id, nickname: user.nickname }
+  const sessionUser = {
+    id: userDoc.id,
+    nickname: userData.nickname,
+    role: userData.role || 'player'
+  }
   localStorage.setItem('ugta_current_user', JSON.stringify(sessionUser))
   currentUser.value = sessionUser
 }

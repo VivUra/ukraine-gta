@@ -44,8 +44,8 @@
 
           <p v-if="errorMessage" class="error-msg">{{ errorMessage }}</p>
 
-          <button type="submit" class="submit-btn">
-            {{ isSignUp ? 'Створити акаунт' : 'Увійти' }}
+          <button type="submit" class="submit-btn" :disabled="loading">
+            {{ loading ? 'Зачекайте...' : (isSignUp ? 'Створити акаунт' : 'Увійти') }}
           </button>
         </form>
 
@@ -75,6 +75,7 @@ const nickname = ref('')
 const password = ref('')
 const isSignUp = ref(false)
 const errorMessage = ref('')
+const loading = ref(false)
 
 const switchMode = () => {
   errorMessage.value = ''
@@ -86,14 +87,15 @@ const close = () => {
   emit('close')
 }
 
-const handleSubmit = () => {
+const handleSubmit = async () => {
   errorMessage.value = ''
+  loading.value = true
 
   try {
     if (isSignUp.value) {
-      registerUser(nickname.value, password.value)
+      await registerUser(nickname.value, password.value)
     } else {
-      loginUser(nickname.value, password.value)
+      await loginUser(nickname.value, password.value)
     }
     
     nickname.value = ''
@@ -102,6 +104,8 @@ const handleSubmit = () => {
     close()
   } catch (error) {
     errorMessage.value = error.message
+  } finally {
+    loading.value = false
   }
 }
 
@@ -206,8 +210,13 @@ h2 {
   transition: opacity 0.2s;
 }
 
-.submit-btn:hover {
+.submit-btn:hover:not(:disabled) {
   opacity: 0.9;
+}
+
+.submit-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .error-msg {
