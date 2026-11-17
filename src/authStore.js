@@ -11,7 +11,7 @@ const saveSession = (userObj) => {
   currentUser.value = userObj
 }
 
-// Жива синхронізація поточного профілю з Firebase (щоб зміна ролі застосовувалась миттєво)
+// Жива синхронізація поточного профілю з Firebase (миттєво оновлює роль, мут або бан)
 export const initCurrentUserSync = () => {
   if (!currentUser.value?.id) return
   onSnapshot(doc(db, 'users', currentUser.value.id), (snap) => {
@@ -27,7 +27,11 @@ export const initCurrentUserSync = () => {
         signature: data.signature || '',
         about: data.about || '',
         reactions: data.reactions || 0,
-        points: data.points || 10
+        points: data.points || 10,
+        muteUntil: data.muteUntil || 0,
+        muteReason: data.muteReason || '',
+        banUntil: data.banUntil || 0,
+        banReason: data.banReason || ''
       })
     }
   })
@@ -47,7 +51,6 @@ export const registerUser = async (nickname, password) => {
     throw new Error('Гравець із таким нікнеймом вже існує.')
   }
 
-  // При реєстрації кожен отримує 1 рівень — role: 'player' (Гравець)
   const newUserData = {
     nickname: cleanNick,
     nicknameLower: cleanNick.toLowerCase(),
@@ -60,6 +63,10 @@ export const registerUser = async (nickname, password) => {
     about: '',
     reactions: 0,
     points: 10,
+    muteUntil: 0,
+    muteReason: '',
+    banUntil: 0,
+    banReason: '',
     createdAt: new Date().toLocaleString('uk-UA')
   }
 
@@ -92,7 +99,11 @@ export const loginUser = async (nickname, password) => {
     signature: userData.signature || '',
     about: userData.about || '',
     reactions: userData.reactions || 0,
-    points: userData.points || 10
+    points: userData.points || 10,
+    muteUntil: userData.muteUntil || 0,
+    muteReason: userData.muteReason || '',
+    banUntil: userData.banUntil || 0,
+    banReason: userData.banReason || ''
   })
   initCurrentUserSync()
 }
@@ -128,11 +139,44 @@ export const changeUserPassword = async (oldPassword, newPassword) => {
   })
 }
 
-// Видача ролі гравцю старшою адміністрацією / розробниками
 export const assignUserRole = async (targetUserId, newRoleKey) => {
   await updateDoc(doc(db, 'users', targetUserId), {
     role: newRoleKey
   })
+}
+
+// Видача муту або блокування гравцю (durationMinutes = 0 означає назавжди)
+export const punishUser = async (targetUserId, { type, durationMinutes, reason }) => {
+  const untilTimestamp = durationMinutes > 0
+    ? Date.now() + durationMinutes * 60 * 1000
+    : 4102444800000 // 2100 рік (перманентно)
+
+  if (type === 'mute') {
+    await updateDoc(doc(db, 'users', targetUserId), {
+      muteUntil: untilTimestamp,
+      muteReason: reason.trim() || 'Порушення правил форуму'
+    })
+  } else if (type === 'ban') {
+    await updateDoc(doc(db, 'users', targetUserId), {
+      banUntil: untilTimestamp,
+      banReason: reason.trim() || 'Порушення правил форуму'
+    })
+  }
+}
+
+// Дострокове зняття муту або блокування
+export const unpunishUser = async (targetUserId, type) => {
+  if (type === 'mute') {
+    await updateDoc(doc(db, 'users', targetUserId), {
+      muteUntil: 0,
+      muteReason: ''
+    })
+  } else if (type === 'ban') {
+    await updateDoc(doc(db, 'users', targetUserId), {
+      banUntil: 0,
+      banReason: ''
+    })
+  }
 }
 
 export const logoutUser = () => {
