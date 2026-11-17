@@ -5,77 +5,86 @@ import {
   addDoc,
   deleteDoc,
   doc,
+  updateDoc,
+  increment,
   onSnapshot,
   query,
   orderBy,
   serverTimestamp
 } from 'firebase/firestore'
 
-// Реактивні списки розділів та тем (оновлюються автоматично у всіх користувачів)
-export const forumSections = ref([])
+// Усі вузли (і головні розділи, і будь-які підрозділи)
+export const forumNodes = ref([])
+// Усі теми (дописи)
 export const forumTopics = ref([])
+// Усі відповіді в темах
+export const forumReplies = ref([])
 export const isForumLoading = ref(true)
 
-// Підписка на розділи форуму в реальному часі
 export const initForumListeners = () => {
-  const sectionsQuery = query(collection(db, 'sections'), orderBy('order', 'asc'))
-  onSnapshot(sectionsQuery, (snapshot) => {
-    forumSections.value = snapshot.docs.map((doc) => ({
-      id: doc.id,
-      ...doc.data()
+  const nodesQuery = query(collection(db, 'nodes'), orderBy('order', 'asc'))
+  onSnapshot(nodesQuery, (snapshot) => {
+    forumNodes.value = snapshot.docs.map((d) => ({
+      id: d.id,
+      ...d.data()
     }))
     isForumLoading.value = false
   })
 
   const topicsQuery = query(collection(db, 'topics'), orderBy('createdAt', 'desc'))
   onSnapshot(topicsQuery, (snapshot) => {
-    forumTopics.value = snapshot.docs.map((doc) => ({
-      id: doc.id,
-      ...doc.data()
+    forumTopics.value = snapshot.docs.map((d) => ({
+      id: d.id,
+      ...d.data()
+    }))
+  })
+
+  const repliesQuery = query(collection(db, 'replies'), orderBy('createdAt', 'asc'))
+  onSnapshot(repliesQuery, (snapshot) => {
+    forumReplies.value = snapshot.docs.map((d) => ({
+      id: d.id,
+      ...d.data()
     }))
   })
 }
 
-// [ТІЛЬКИ ДЛЯ ADMIN] Створити новий розділ на форумі
-export const createSection = async (title, description, subforumsText = '') => {
+// Створити розділ (parentId = null) або підрозділ (parentId = id батьківського розділу)
+export const createNode = async ({ title, description = '', parentId = null }) => {
   const cleanTitle = title.trim()
-  if (!cleanTitle) throw new Error('Введіть назву розділу.')
+  if (!cleanTitle) throw new Error('Введіть назву.')
 
-  // Перетворюємо рядок підрозділів через кому у масив
-  const subforums = subforumsText
-    .split(',')
-    .map((s) => s.trim())
-    .filter((s) => s.length > 0)
-
-  await addDoc(collection(db, 'sections'), {
+  await addDoc(collection(db, 'nodes'), {
     title: cleanTitle,
     description: description.trim(),
-    subforums: subforums,
+    parentId: parentId,
     order: Date.now(),
     createdAt: serverTimestamp()
   })
 }
 
-// [ТІЛЬКИ ДЛЯ ADMIN] Видалити розділ
-export const deleteSection = async (sectionId) => {
-  await deleteDoc(doc(db, 'sections', sectionId))
+// Видалити розділ або підрозділ
+export const deleteNode = async (nodeId) => {
+  await deleteDoc(doc(db, 'nodes', nodeId))
 }
 
-// [ТІЛЬКИ ДЛЯ ADMIN] Створити тему / пост у розділі
-export const createTopic = async ({ sectionId, title, content, prefix, authorNickname }) => {
+// Створити тему в будь-якому розділі чи підрозділі
+export const createTopic = async ({ nodeId, title, content, prefix, authorNickname, authorRole, isLocked = false }) => {
   if (!title.trim() || !content.trim()) {
-    throw new Error('Заповніть заголовок та текст повідомлення.')
+    throw new Error('Заповніть заголовок та текст теми.')
   }
 
   await addDoc(collection(db, 'topics'), {
-    sectionId,
+    nodeId,
     title: title.trim(),
     content: content.trim(),
-    prefix: prefix || '', // Наприклад: 'Важливо', 'Інформація', 'Схвалено'
+    prefix: prefix || '',
     author: authorNickname,
+    authorBadge: authorRole === 'admin' ? 'Адміністратор' : 'Гравець',
+    isLocked: isLocked,
+    views: 1,
     dateText: new Date().toLocaleString('uk-UA', {
       day: '2-digit',
-      month: '2-digit',
+      month: 'short',
       year: 'numeric',
       hour: '2-digit',
       minute: '2-digit'
@@ -84,7 +93,43 @@ export const createTopic = async ({ sectionId, title, content, prefix, authorNic
   })
 }
 
-// [ТІЛЬКИ ДЛЯ ADMIN] Видалити тему
+// Збільшити лічильник переглядів при відкритті теми
+export const incrementTopicViews = async (topicId) => {
+  try {
+    await updateDoc(doc(db, 'topics', topicId), {
+      views: increment(1)
+    })
+  } catch (e) {
+    // Ігноруємо помилку, якщо немає прав на запис
+  }
+}
+
+// Видалити тему
 export const deleteTopic = async (topicId) => {
   await deleteDoc(doc(db, 'topics', topicId))
+}
+
+// Додати відповідь у тему (для авторизованих гравців та адмінів)
+export const createReply = async ({ topicId, content, authorNickname, authorRole }) => {
+  if (!content.trim()) throw new Error('Введіть текст повідомлення.')
+
+  await addDoc(collection(db, 'replies'), {
+    topicId,
+    content: content.trim(),
+    author: authorNickname,
+    authorBadge: authorRole === 'admin' ? 'Адміністратор' : 'Гравець',
+    dateText: new Date().toLocaleString('uk-UA', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    }),
+    createdAt: serverTimestamp()
+  })
+}
+
+// Видалити відповідь
+export const deleteReply = async (replyId) => {
+  await deleteDoc(doc(db, 'replies', replyId))
 }
