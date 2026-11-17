@@ -46,7 +46,6 @@
               <div class="xen-username">{{ currentUser.nickname }}</div>
               <div v-if="currentUser.title" class="xen-usertitle">{{ currentUser.title }}</div>
   
-              <!-- Фірмова плашка ролі -->
               <div class="xen-role-wrap">
                 <span class="ugta-role-banner" :class="currentRoleInfo.cssClass">
                   {{ currentRoleInfo.label }}
@@ -150,7 +149,7 @@
               v-if="canManageRoles"
               type="button"
               :class="{ active: modalSection === 'roles' }"
-              @click="modalSection = 'roles'"
+              @click="openRolesTab"
             >
               <Icon icon="mdi:crown" /> Керування ролями
             </button>
@@ -240,12 +239,20 @@
   
               <input
                 v-model="userSearchQuery"
-                type="text"
+                type="search"
+                name="ugta_player_filter"
+                autocomplete="off"
+                autocorrect="off"
+                spellcheck="false"
                 class="role-search-input"
                 placeholder="Пошук гравця за нікнеймом..."
               />
   
               <div class="users-roles-list">
+                <div v-if="filteredUsersForRoles.length === 0" class="hint">
+                  Гравців не знайдено.
+                </div>
+  
                 <div
                   v-for="u in filteredUsersForRoles"
                   :key="u.id"
@@ -292,7 +299,7 @@
     logoutUser,
     initCurrentUserSync
   } from '../authStore.js'
-  import { forumTopics, forumReplies, allUsersList } from '../forumStore.js'
+  import { forumTopics, forumReplies, allUsersList, initForumListeners } from '../forumStore.js'
   import { ROLES_LIST, getRoleInfo } from '../rolesConfig.js'
   
   const isOpen = ref(false)
@@ -301,7 +308,6 @@
   const quickStatus = ref('')
   
   const currentRoleInfo = computed(() => getRoleInfo(currentUser.value?.role))
-  // Рівень 7+ (КА, ЗГА, ГА, Розробник, Головний розробник) можуть видавати ролі
   const canManageRoles = computed(() => currentRoleInfo.value.level >= 7)
   
   const myTopics = computed(() =>
@@ -325,6 +331,10 @@
   onMounted(() => {
     document.addEventListener('click', handleClickOutside)
     initCurrentUserSync()
+    // Завантажуємо список усіх гравців навіть якщо користувач перебуває на Головній, а не на вкладці Форум
+    if (allUsersList.value.length === 0) {
+      initForumListeners()
+    }
   })
   onUnmounted(() => document.removeEventListener('click', handleClickOutside))
   
@@ -346,10 +356,17 @@
   const formSignature = ref('')
   const oldPass = ref('')
   const newPass = ref('')
+  const userSearchQuery = ref('')
+  
+  const openRolesTab = () => {
+    userSearchQuery.value = ''
+    modalSection.value = 'roles'
+  }
   
   const openSettingsModal = (section) => {
     feedbackMsg.value = ''
     errorMsg.value = ''
+    userSearchQuery.value = ''
     formAvatar.value = currentUser.value?.avatarUrl || ''
     formTitle.value = currentUser.value?.title || ''
     formAbout.value = currentUser.value?.about || ''
@@ -397,8 +414,6 @@
     }
   }
   
-  // Логіка керування ролями
-  const userSearchQuery = ref('')
   const filteredUsersForRoles = computed(() => {
     const q = userSearchQuery.value.trim().toLowerCase()
     if (!q) return allUsersList.value
@@ -407,7 +422,6 @@
   
   const assignableRoles = computed(() => {
     const myLvl = currentRoleInfo.value.level
-    // Головний розробник (11) може ставити всі 11 ролей, інші — строго нижче свого рівня
     return ROLES_LIST.filter((r) => (myLvl === 11 ? true : r.level < myLvl))
   })
   
@@ -462,6 +476,7 @@
     top: calc(100% + 10px);
     right: 0;
     width: 370px;
+    max-width: 92vw;
     background: #181a22;
     border: 1px solid #2b3040;
     border-top: 3px solid #ff6b00;
@@ -667,7 +682,7 @@
     align-items: center;
     justify-content: center;
     z-index: 3500;
-    padding: 16px;
+    padding: 12px;
   }
   
   .settings-modal {
@@ -678,8 +693,10 @@
     width: 100%;
     max-width: 780px;
     min-height: 430px;
+    max-height: 90vh;
     overflow: hidden;
     color: #fff;
+    position: relative;
   }
   
   .settings-sidebar {
@@ -690,6 +707,7 @@
     display: flex;
     flex-direction: column;
     gap: 6px;
+    flex-shrink: 0;
   }
   
   .settings-sidebar-title {
@@ -712,6 +730,7 @@
     gap: 8px;
     cursor: pointer;
     text-align: left;
+    white-space: nowrap;
   }
   
   .settings-sidebar button.active,
@@ -723,21 +742,25 @@
   
   .settings-content {
     flex: 1;
-    padding: 28px;
+    min-width: 0;
+    padding: 28px 24px;
     position: relative;
-    max-height: 85vh;
     overflow-y: auto;
   }
   
   .close-modal-btn {
     position: absolute;
-    top: 16px;
-    right: 16px;
-    background: none;
-    border: none;
-    color: #8a8d98;
-    font-size: 18px;
+    top: 14px;
+    right: 14px;
+    background: #1e222e;
+    border: 1px solid #2d3345;
+    border-radius: 6px;
+    width: 30px;
+    height: 30px;
+    color: #fff;
+    font-size: 15px;
     cursor: pointer;
+    z-index: 10;
   }
   
   .settings-form {
@@ -762,6 +785,7 @@
     font-family: inherit;
     font-size: 14px;
     width: 100%;
+    box-sizing: border-box;
   }
   
   .btn-save-settings {
@@ -815,8 +839,48 @@
     background: #1c1f2b;
     border: 1px solid #32384d;
     color: #fff;
-    padding: 7px 10px;
+    padding: 8px 10px;
     border-radius: 6px;
     font-size: 13px;
+  }
+  
+  /* АДАПТИВ ДЛЯ ТЕЛЕФОНІВ ТА ПЛАНШЕТІВ */
+  @media (max-width: 900px) {
+    .xen-dropdown {
+      right: -10px;
+      width: 330px;
+    }
+  
+    .settings-modal {
+      flex-direction: column;
+      max-height: 88vh;
+    }
+  
+    .settings-sidebar {
+      width: 100%;
+      border-right: none;
+      border-bottom: 1px solid #232733;
+      flex-direction: row;
+      overflow-x: auto;
+      padding: 12px;
+      gap: 8px;
+    }
+  
+    .settings-sidebar-title {
+      display: none;
+    }
+  
+    .settings-content {
+      padding: 20px 16px;
+    }
+  
+    .user-role-row {
+      flex-direction: column;
+      align-items: stretch;
+    }
+  
+    .role-select-box {
+      width: 100%;
+    }
   }
   </style>
