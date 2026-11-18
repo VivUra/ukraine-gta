@@ -15,6 +15,14 @@ import {
 } from 'firebase/firestore'
 import { getRoleInfo, getExtraBadgeInfo } from './rolesConfig.js'
 
+export const REACTION_TYPES = [
+  { id: 'like', emoji: '👍', label: 'Лайк' },
+  { id: 'love', emoji: '❤️', label: 'Любов' },
+  { id: 'haha', emoji: '😂', label: 'Сміх' },
+  { id: 'wow', emoji: '😮', label: 'Здивування' },
+  { id: 'sad', emoji: '😢', label: 'Сум' }
+]
+
 export const forumNodes = ref([])
 export const forumTopics = ref([])
 export const forumReplies = ref([])
@@ -79,7 +87,6 @@ export const initForumListeners = () => {
     }))
   })
 
-  // Живі сповіщення (Дзвіночок)
   const notifQuery = query(collection(db, 'notifications'), orderBy('createdAt', 'desc'))
   onSnapshot(notifQuery, (snapshot) => {
     allNotifications.value = snapshot.docs.map((d) => ({
@@ -88,7 +95,6 @@ export const initForumListeners = () => {
     }))
   })
 
-  // Живі приватні бесіди (Конверт)
   const convQuery = query(collection(db, 'conversations'), orderBy('updatedAt', 'desc'))
   onSnapshot(convQuery, (snapshot) => {
     allConversations.value = snapshot.docs.map((d) => ({
@@ -97,7 +103,6 @@ export const initForumListeners = () => {
     }))
   })
 
-  // Повідомлення всередині приватних бесід
   const convMsgsQuery = query(collection(db, 'conversation_messages'), orderBy('createdAt', 'asc'))
   onSnapshot(convMsgsQuery, (snapshot) => {
     allConversationMessages.value = snapshot.docs.map((d) => ({
@@ -114,7 +119,7 @@ export const sendNotification = async ({
   targetNickLower,
   actorNickname,
   actorAvatar = '',
-  type = 'reply', // 'reply' | 'status' | 'role' | 'wall' | 'message'
+  type = 'reply',
   text,
   topicId = '',
   profileNick = ''
@@ -157,6 +162,83 @@ export const markAllNotificationsRead = async (nickLower) => {
 }
 
 // ==========================================
+// РЕАКЦІЇ ПІД ДОПИСАМИ (ЕМОДЗІ + ЛІЧИЛЬНИК)
+// ==========================================
+export const togglePostReaction = async ({
+  collectionName,
+  itemId,
+  reactionId = 'like',
+  actorNickname,
+  actorAvatar = ''
+}) => {
+  if (!itemId || !actorNickname) return
+
+  const sourceList = collectionName === 'topics' ? forumTopics.value : forumReplies.value
+  const targetItem = sourceList.find((x) => x.id === itemId)
+  if (!targetItem) return
+
+  const authorNick = targetItem.author || ''
+  if (authorNick.toLowerCase() === actorNickname.toLowerCase()) return
+
+  const currentReactions = Array.isArray(targetItem.reactions) ? [...targetItem.reactions] : []
+  const actorLower = actorNickname.toLowerCase()
+  const existingIdx = currentReactions.findIndex((r) => r.nickLower === actorLower)
+
+  let delta = 0
+  let shouldNotify = false
+
+  if (existingIdx !== -1) {
+    if (currentReactions[existingIdx].type === reactionId) {
+      currentReactions.splice(existingIdx, 1)
+      delta = -1
+    } else {
+      currentReactions[existingIdx] = {
+        nick: actorNickname,
+        nickLower: actorLower,
+        type: reactionId
+      }
+      delta = 0
+    }
+  } else {
+    currentReactions.push({
+      nick: actorNickname,
+      nickLower: actorLower,
+      type: reactionId
+    })
+    delta = 1
+    shouldNotify = true
+  }
+
+  await updateDoc(doc(db, collectionName, itemId), {
+    reactions: currentReactions
+  })
+
+  if (delta !== 0 && authorNick) {
+    const authorUser = usersByNick.value[authorNick.toLowerCase()]
+    if (authorUser?.id) {
+      const nextCount = Math.max(0, (Number(authorUser.reactions) || 0) + delta)
+      await updateDoc(doc(db, 'users', authorUser.id), {
+        reactions: nextCount
+      })
+    }
+  }
+
+  if (shouldNotify && authorNick) {
+    const rMeta = REACTION_TYPES.find((r) => r.id === reactionId) || REACTION_TYPES[0]
+    const topicId = collectionName === 'topics' ? targetItem.id : targetItem.topicId
+    const parentTopic = forumTopics.value.find((t) => t.id === topicId)
+    await sendNotification({
+      targetNickLower: authorNick.toLowerCase(),
+      actorNickname,
+      actorAvatar,
+      type: 'reaction',
+      text: `${actorNickname} відреагував(ла) ${rMeta.emoji} (${rMeta.label}) на ваш допис у темі «${parentTopic?.title || 'Форум'}»`,
+      topicId: topicId || ''
+    })
+  }
+}
+
+// ==========================================
 // ОСОБИСТІ ПОВІДОМЛЕННЯ (ПРИВАТНІ БЕСІДИ)
 // ==========================================
 export const createConversation = async ({
@@ -171,7 +253,6 @@ export const createConversation = async ({
     throw new Error('Заповніть заголовок бесіди та текст повідомлення.')
   }
 
-  // Збираємо унікальний список учасників у нижньому регістрі + зберігаємо красиві ніки
   const lowerSet = new Set([creatorNickname.toLowerCase()])
   const displayNames = [creatorNickname]
 
@@ -455,6 +536,7 @@ export const createTopic = async ({
     authorRole: authorRole || 'player',
     isLocked: isLocked,
     isPinned: isPinned,
+    reactions: [],
     views: 1,
     dateText: new Date().toLocaleString('uk-UA', {
       day: '2-digit',
@@ -471,7 +553,6 @@ export const updateTopic = async (topicId, updates, actorNickname = '') => {
   const prevTopic = forumTopics.value.find((t) => t.id === topicId)
   await updateDoc(doc(db, 'topics', topicId), updates)
 
-  // Якщо змінився префікс/статус теми (Схвалено / Відмовлено / На розгляд) — надсилаємо сповіщення автору
   if (
     prevTopic &&
     updates.prefix !== undefined &&
@@ -516,6 +597,7 @@ export const createReply = async ({
     author: authorNickname,
     authorAvatar: authorAvatar,
     authorRole: authorRole || 'player',
+    reactions: [],
     dateText: new Date().toLocaleString('uk-UA', {
       day: '2-digit',
       month: 'short',
@@ -526,7 +608,6 @@ export const createReply = async ({
     createdAt: serverTimestamp()
   })
 
-  // Сповіщення автору теми про нову відповідь
   const parentTopic = forumTopics.value.find((t) => t.id === topicId)
   if (parentTopic && parentTopic.author) {
     await sendNotification({
@@ -540,99 +621,10 @@ export const createReply = async ({
   }
 }
 
-export const REACTION_TYPES = [
-  { id: 'like', emoji: '👍', label: 'Лайк' },
-  { id: 'love', emoji: '❤️', label: 'Любов' },
-  { id: 'haha', emoji: '😂', label: 'Сміх' },
-  { id: 'wow', emoji: '😮', label: 'Здивування' },
-  { id: 'sad', emoji: '😢', label: 'Сум' }
-]
-
-// Поставити, змінити або зняти реакцію під темою чи відповіддю
-export const togglePostReaction = async ({
-  collectionName, // 'topics' або 'replies'
-  itemId,
-  reactionId = 'like',
-  actorNickname,
-  actorAvatar = ''
-}) => {
-  if (!itemId || !actorNickname) return
-
-  const sourceList = collectionName === 'topics' ? forumTopics.value : forumReplies.value
-  const targetItem = sourceList.find((x) => x.id === itemId)
-  if (!targetItem) return
-
-  const authorNick = targetItem.author || ''
-  if (authorNick.toLowerCase() === actorNickname.toLowerCase()) return // не можна лайкати себе
-
-  const currentReactions = Array.isArray(targetItem.reactions) ? [...targetItem.reactions] : []
-  const actorLower = actorNickname.toLowerCase()
-  const existingIdx = currentReactions.findIndex((r) => r.nickLower === actorLower)
-
-  let delta = 0
-  let shouldNotify = false
-
-  if (existingIdx !== -1) {
-    if (currentReactions[existingIdx].type === reactionId) {
-      // Повторний клік по тій самій реакції — знімаємо її
-      currentReactions.splice(existingIdx, 1)
-      delta = -1
-    } else {
-      // Зміна емодзі на інший
-      currentReactions[existingIdx] = {
-        nick: actorNickname,
-        nickLower: actorLower,
-        type: reactionId
-      }
-      delta = 0
-    }
-  } else {
-    // Нова реакція
-    currentReactions.push({
-      nick: actorNickname,
-      nickLower: actorLower,
-      type: reactionId
-    })
-    delta = 1
-    shouldNotify = true
-  }
-
-  await updateDoc(doc(db, collectionName, itemId), {
-    reactions: currentReactions
-  })
-
-  // Оновлюємо лічильник «Реакції» у профілі автора допису
-  if (delta !== 0 && authorNick) {
-    const authorUser = usersByNick.value[authorNick.toLowerCase()]
-    if (authorUser?.id) {
-      const nextCount = Math.max(0, (Number(authorUser.reactions) || 0) + delta)
-      await updateDoc(doc(db, 'users', authorUser.id), {
-        reactions: nextCount
-      })
-    }
-  }
-
-  // Надсилаємо сповіщення автору допису
-  if (shouldNotify && authorNick) {
-    const rMeta = REACTION_TYPES.find((r) => r.id === reactionId) || REACTION_TYPES[0]
-    const topicId = collectionName === 'topics' ? targetItem.id : targetItem.topicId
-    const parentTopic = forumTopics.value.find((t) => t.id === topicId)
-    await sendNotification({
-      targetNickLower: authorNick.toLowerCase(),
-      actorNickname,
-      actorAvatar,
-      type: 'reaction',
-      text: `${actorNickname} відреагував(ла) ${rMeta.emoji} (${rMeta.label}) на ваш допис у темі «${parentTopic?.title || 'Форум'}»`,
-      topicId: topicId || ''
-    })
-  }
-}
-
 export const deleteReply = async (replyId) => {
   await deleteDoc(doc(db, 'replies', replyId))
 }
 
-// Сповіщення про зміну основної ролі (викликається з authStore або AccountDropdown)
 export const notifyRoleAssigned = async (targetUserId, newRoleKey, actorNickname = 'Адміністрація') => {
   const targetUser = allUsersList.value.find((u) => u.id === targetUserId)
   if (!targetUser) return
