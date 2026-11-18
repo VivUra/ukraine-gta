@@ -10,8 +10,21 @@ export const ROLES_HIERARCHY = [
   { id: 'zga', label: 'Заст. Головного Адміністратора', level: 8, cssClass: 'role-zga' },
   { id: 'ga', label: 'Головний Адміністратор', level: 9, cssClass: 'role-ga' },
   { id: 'spec_admin', label: 'Спец. Адміністратор', level: 10, cssClass: 'role-spec-admin' },
-  { id: 'head_dev', label: 'Головний Розробник', level: 11, cssClass: 'role-head-dev' }
+  { id: 'developer', label: 'Головний Розробник', level: 11, cssClass: 'role-developer' }
 ]
+
+// Мапа сумісності зі старими ID ролей у базі Firebase
+const LEGACY_ROLE_ALIASES = {
+  senior_moderator: 'sr_moderator',
+  junior_admin: 'jr_admin',
+  senior_admin: 'sr_admin',
+  deputy_ga: 'zga',
+  chief_admin: 'ga',
+  special_admin: 'spec_admin',
+  head_dev: 'developer',
+  main_developer: 'developer',
+  owner: 'developer'
+}
 
 // Незалежні статусні ролі (без привілеїв, відображаються як додаткові анімовані плашки)
 export const EXTRA_BADGE_ROLES = [
@@ -28,7 +41,9 @@ export const EXTRA_BADGE_ROLES = [
 ]
 
 export const getRoleInfo = (roleId) => {
-  return ROLES_HIERARCHY.find((r) => r.id === roleId) || ROLES_HIERARCHY[0]
+  if (!roleId) return ROLES_HIERARCHY[0]
+  const normalizedId = LEGACY_ROLE_ALIASES[roleId] || roleId
+  return ROLES_HIERARCHY.find((r) => r.id === normalizedId) || ROLES_HIERARCHY[0]
 }
 
 export const getRoleLevel = (roleId) => {

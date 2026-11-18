@@ -11,7 +11,7 @@ const saveSession = (userObj) => {
   currentUser.value = userObj
 }
 
-// Жива синхронізація поточного профілю з Firebase (миттєво оновлює роль, мут або бан)
+// Жива синхронізація поточного профілю з Firebase (миттєво оновлює роль, статуси, мут або бан)
 export const initCurrentUserSync = () => {
   if (!currentUser.value?.id) return
   onSnapshot(doc(db, 'users', currentUser.value.id), (snap) => {
@@ -21,6 +21,7 @@ export const initCurrentUserSync = () => {
         id: snap.id,
         nickname: data.nickname,
         role: data.role || 'player',
+        extraBadges: data.extraBadges || [],
         title: data.title || '',
         avatarUrl: data.avatarUrl || '',
         status: data.status || '',
@@ -56,6 +57,7 @@ export const registerUser = async (nickname, password) => {
     nicknameLower: cleanNick.toLowerCase(),
     password: password,
     role: 'player',
+    extraBadges: [],
     title: '',
     avatarUrl: '',
     status: '',
@@ -93,6 +95,7 @@ export const loginUser = async (nickname, password) => {
     id: userDoc.id,
     nickname: userData.nickname,
     role: userData.role || 'player',
+    extraBadges: userData.extraBadges || [],
     title: userData.title || '',
     avatarUrl: userData.avatarUrl || '',
     status: userData.status || '',
