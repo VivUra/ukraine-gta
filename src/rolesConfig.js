@@ -1,4 +1,4 @@
-// Основна ієрархія посад (1..11) — визначає права доступу
+// Основна ієрархія посад (1..11) — визначає права доступу та фірмові стилі зі style.css
 export const ROLES_HIERARCHY = [
   { id: 'player', label: 'Гравець', level: 1, cssClass: 'role-player' },
   { id: 'moderator', label: 'Модератор', level: 2, cssClass: 'role-moderator' },
@@ -6,23 +6,25 @@ export const ROLES_HIERARCHY = [
   { id: 'jr_admin', label: 'Мол. Адміністратор', level: 4, cssClass: 'role-jr-admin' },
   { id: 'admin', label: 'Адміністратор', level: 5, cssClass: 'role-admin' },
   { id: 'sr_admin', label: 'Ст. Адміністратор', level: 6, cssClass: 'role-sr-admin' },
-  { id: 'curator', label: 'Куратор адміністрації', level: 7, cssClass: 'role-curator' },
-  { id: 'zga', label: 'Заст. Головного Адміністратора', level: 8, cssClass: 'role-zga' },
-  { id: 'ga', label: 'Головний Адміністратор', level: 9, cssClass: 'role-ga' },
-  { id: 'spec_admin', label: 'Спец. Адміністратор', level: 10, cssClass: 'role-spec-admin' },
-  { id: 'developer', label: 'Головний Розробник', level: 11, cssClass: 'role-developer' }
+  { id: 'curator', label: 'КА — Куратор адміністрації', level: 7, cssClass: 'role-ka' },
+  { id: 'zga', label: 'ЗГА — Заст. Головного Адміністратора', level: 8, cssClass: 'role-zga' },
+  { id: 'ga', label: 'ГА — Головний Адміністратор', level: 9, cssClass: 'role-ga' },
+  { id: 'dev', label: 'Розробник', level: 10, cssClass: 'role-dev' },
+  { id: 'developer', label: 'Головний Розробник', level: 11, cssClass: 'role-lead-dev' }
 ]
 
 const LEGACY_ROLE_ALIASES = {
   senior_moderator: 'sr_moderator',
   junior_admin: 'jr_admin',
   senior_admin: 'sr_admin',
+  ka: 'curator',
   deputy_ga: 'zga',
   chief_admin: 'ga',
-  special_admin: 'spec_admin',
+  spec_admin: 'dev',
+  special_admin: 'dev',
+  lead_dev: 'developer',
   head_dev: 'developer',
   main_developer: 'developer',
-  dev: 'developer',
   owner: 'developer',
   creator: 'developer',
   'Головний розробник': 'developer',
