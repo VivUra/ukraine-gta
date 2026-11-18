@@ -13,7 +13,6 @@ export const ROLES_HIERARCHY = [
   { id: 'developer', label: 'Головний Розробник', level: 11, cssClass: 'role-developer' }
 ]
 
-// Мапа сумісності зі старими ID ролей у базі Firebase
 const LEGACY_ROLE_ALIASES = {
   senior_moderator: 'sr_moderator',
   junior_admin: 'jr_admin',
@@ -23,7 +22,11 @@ const LEGACY_ROLE_ALIASES = {
   special_admin: 'spec_admin',
   head_dev: 'developer',
   main_developer: 'developer',
-  owner: 'developer'
+  dev: 'developer',
+  owner: 'developer',
+  creator: 'developer',
+  'Головний розробник': 'developer',
+  'Головний Розробник': 'developer'
 }
 
 // Незалежні статусні ролі (без привілеїв, відображаються як додаткові анімовані плашки)

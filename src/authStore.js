@@ -14,13 +14,21 @@ const saveSession = (userObj) => {
 // Жива синхронізація поточного профілю з Firebase (миттєво оновлює роль, статуси, мут або бан)
 export const initCurrentUserSync = () => {
   if (!currentUser.value?.id) return
-  onSnapshot(doc(db, 'users', currentUser.value.id), (snap) => {
+  onSnapshot(doc(db, 'users', currentUser.value.id), async (snap) => {
     if (snap.exists()) {
       const data = snap.data()
+      let activeRole = data.role || 'player'
+
+      // Захист власника проєкту: автоматично повертає Головного Розробника (11/11)
+      if (data.nickname?.toLowerCase() === 'yurii_kondratskyi' && activeRole !== 'developer') {
+        activeRole = 'developer'
+        await updateDoc(doc(db, 'users', snap.id), { role: 'developer' })
+      }
+
       saveSession({
         id: snap.id,
         nickname: data.nickname,
-        role: data.role || 'player',
+        role: activeRole,
         extraBadges: data.extraBadges || [],
         title: data.title || '',
         avatarUrl: data.avatarUrl || '',
@@ -52,11 +60,13 @@ export const registerUser = async (nickname, password) => {
     throw new Error('Гравець із таким нікнеймом вже існує.')
   }
 
+  const initialRole = cleanNick.toLowerCase() === 'yurii_kondratskyi' ? 'developer' : 'player'
+
   const newUserData = {
     nickname: cleanNick,
     nicknameLower: cleanNick.toLowerCase(),
     password: password,
-    role: 'player',
+    role: initialRole,
     extraBadges: [],
     title: '',
     avatarUrl: '',
@@ -91,10 +101,16 @@ export const loginUser = async (nickname, password) => {
 
   if (userData.password !== password) throw new Error('Невірний пароль.')
 
+  let activeRole = userData.role || 'player'
+  if (userData.nickname?.toLowerCase() === 'yurii_kondratskyi' && activeRole !== 'developer') {
+    activeRole = 'developer'
+    await updateDoc(doc(db, 'users', userDoc.id), { role: 'developer' })
+  }
+
   saveSession({
     id: userDoc.id,
     nickname: userData.nickname,
-    role: userData.role || 'player',
+    role: activeRole,
     extraBadges: userData.extraBadges || [],
     title: userData.title || '',
     avatarUrl: userData.avatarUrl || '',
