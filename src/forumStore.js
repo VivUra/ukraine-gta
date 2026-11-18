@@ -61,21 +61,52 @@ export const initForumListeners = () => {
   })
 }
 
-export const createNode = async ({ title, description = '', parentId = null }) => {
+export const createNode = async ({
+  title,
+  description = '',
+  parentId = null,
+  allowSubforums = true,
+  minSubforumLevel = 8,
+  allowTopics = true,
+  minTopicLevel = 1
+}) => {
   const cleanTitle = title.trim()
   if (!cleanTitle) throw new Error('Введіть назву.')
 
   await addDoc(collection(db, 'nodes'), {
     title: cleanTitle,
-    description: description.trim(),
+    description: (description || '').trim(),
     parentId: parentId,
+    allowSubforums: Boolean(allowSubforums),
+    minSubforumLevel: Number(minSubforumLevel) || 8,
+    allowTopics: Boolean(allowTopics),
+    minTopicLevel: Number(minTopicLevel) || 1,
     order: Date.now(),
     createdAt: serverTimestamp()
   })
 }
 
+export const updateNode = async (nodeId, payload) => {
+  if (!nodeId) return
+  await updateDoc(doc(db, 'nodes', nodeId), {
+    title: payload.title.trim(),
+    description: (payload.description || '').trim(),
+    allowSubforums: Boolean(payload.allowSubforums),
+    minSubforumLevel: Number(payload.minSubforumLevel) || 8,
+    allowTopics: Boolean(payload.allowTopics),
+    minTopicLevel: Number(payload.minTopicLevel) || 1
+  })
+}
+
 export const deleteNode = async (nodeId) => {
   await deleteDoc(doc(db, 'nodes', nodeId))
+}
+
+export const updateUserExtraBadges = async (userId, badgesArray) => {
+  if (!userId) return
+  await updateDoc(doc(db, 'users', userId), {
+    extraBadges: Array.isArray(badgesArray) ? badgesArray : []
+  })
 }
 
 export const createTopic = async ({
@@ -115,7 +146,6 @@ export const createTopic = async ({
   })
 }
 
-// Оновлення теми: текст, заголовок, тег (префікс), закріплення, закриття
 export const updateTopic = async (topicId, updates) => {
   await updateDoc(doc(db, 'topics', topicId), updates)
 }

@@ -46,9 +46,22 @@
             <div class="xen-username">{{ currentUser.nickname }}</div>
             <div v-if="currentUser.title" class="xen-usertitle">{{ currentUser.title }}</div>
 
+            <!-- Основна роль -->
             <div class="xen-role-wrap">
               <span class="ugta-role-banner" :class="currentRoleInfo.cssClass">
                 {{ currentRoleInfo.label }}
+              </span>
+            </div>
+
+            <!-- Незалежні статусні ролі поточного гравця (Блогер / Донатер) -->
+            <div v-if="myExtraBadgesList.length > 0" class="ugta-extra-badges-list">
+              <span
+                v-for="badge in myExtraBadgesList"
+                :key="badge.id"
+                class="ugta-extra-badge"
+                :class="badge.cssClass"
+              >
+                {{ badge.label }}
               </span>
             </div>
 
@@ -232,9 +245,9 @@
             </div>
           </div>
 
-          <!-- ПАНЕЛЬ КЕРУВАННЯ ГРАВЦЯМИ: РОЛІ + МУТ + БАН -->
+          <!-- ПАНЕЛЬ КЕРУВАННЯ ГРАВЦЯМИ: РОЛІ + БЛОГЕР/ДОНАТЕР + МУТ + БАН -->
           <div v-else-if="modalSection === 'roles'" class="roles-manager-panel">
-            <h3>Керування гравцями (Ролі, Мут, Блокування)</h3>
+            <h3>Керування гравцями (Ролі, Статуси, Мут, Блокування)</h3>
 
             <input
               v-model="userSearchQuery"
@@ -321,6 +334,25 @@
                     </span>
                   </div>
 
+                  <!-- Перемикачі незалежних ролей (Блогер, Донатер) — без привілеїв -->
+                  <div v-if="canManageRoles" class="extra-badges-toggles">
+                    <label
+                      v-for="badge in EXTRA_BADGE_ROLES"
+                      :key="badge.id"
+                      class="badge-toggle-chip"
+                      :class="{ checked: hasExtraBadge(u, badge.id) }"
+                    >
+                      <input
+                        type="checkbox"
+                        :checked="hasExtraBadge(u, badge.id)"
+                        @change="toggleUserBadge(u, badge.id)"
+                      />
+                      <span class="ugta-extra-badge mini-extra-badge" :class="badge.cssClass">
+                        {{ badge.label }}
+                      </span>
+                    </label>
+                  </div>
+
                   <!-- Активні покарання гравця -->
                   <div v-if="isUserMuted(u)" class="status-badge badge-mute">
                     <span>Мут до {{ formatDate(u.muteUntil) }} ({{ u.muteReason }})</span>
@@ -364,7 +396,7 @@
                     </button>
                   </div>
 
-                  <!-- Вибір ролі (для 7+ рівня) -->
+                  <!-- Вибір основної ролі (для 7+ рівня) -->
                   <select
                     v-if="canManageRoles"
                     :value="u.role || 'player'"
@@ -374,8 +406,8 @@
                   >
                     <option
                       v-for="r in assignableRoles"
-                      :key="r.key"
-                      :value="r.key"
+                      :key="r.id"
+                      :value="r.id"
                     >
                       {{ r.level }}. {{ r.label }}
                     </option>
@@ -403,8 +435,20 @@ import {
   logoutUser,
   initCurrentUserSync
 } from '../authStore.js'
-import { forumTopics, forumReplies, allUsersList, initForumListeners } from '../forumStore.js'
-import { ROLES_LIST, getRoleInfo } from '../rolesConfig.js'
+import {
+  forumTopics,
+  forumReplies,
+  allUsersList,
+  usersByNick,
+  initForumListeners,
+  updateUserExtraBadges
+} from '../forumStore.js'
+import {
+  ROLES_HIERARCHY,
+  EXTRA_BADGE_ROLES,
+  getRoleInfo,
+  getExtraBadgeInfo
+} from '../rolesConfig.js'
 
 const isOpen = ref(false)
 const activeTab = ref('account')
@@ -412,8 +456,16 @@ const dropdownRef = ref(null)
 const quickStatus = ref('')
 
 const currentRoleInfo = computed(() => getRoleInfo(currentUser.value?.role))
-const canModeratePlayers = computed(() => currentRoleInfo.value.level >= 2) // 2+ Модератор і вище (мут/бан)
-const canManageRoles = computed(() => currentRoleInfo.value.level >= 7)     // 7+ КА і вище (видача ролей)
+const canModeratePlayers = computed(() => currentRoleInfo.value.level >= 2)
+const canManageRoles = computed(() => currentRoleInfo.value.level >= 7)
+
+// Активні додаткові статуси (Блогер, Донатер) поточного користувача
+const myExtraBadgesList = computed(() => {
+  const nick = currentUser.value?.nickname?.toLowerCase()
+  const liveProfile = nick ? usersByNick.value[nick] : null
+  const ids = liveProfile?.extraBadges || currentUser.value?.extraBadges || []
+  return ids.map((id) => getExtraBadgeInfo(id)).filter(Boolean)
+})
 
 const myTopics = computed(() =>
   forumTopics.value.filter((t) => t.author === currentUser.value?.nickname)
@@ -528,7 +580,7 @@ const filteredUsersForRoles = computed(() => {
 
 const assignableRoles = computed(() => {
   const myLvl = currentRoleInfo.value.level
-  return ROLES_LIST.filter((r) => (myLvl === 11 ? true : r.level < myLvl))
+  return ROLES_HIERARCHY.filter((r) => (myLvl === 11 ? true : r.level < myLvl))
 })
 
 const canEditThisUser = (targetUser) => {
@@ -540,6 +592,22 @@ const canEditThisUser = (targetUser) => {
 
 const handleRoleChange = async (userId, newRole) => {
   await assignUserRole(userId, newRole)
+}
+
+// Перевірка та перемикання незалежних статусних ролей (Блогер, Донатер)
+const hasExtraBadge = (userObj, badgeId) => {
+  return Array.isArray(userObj.extraBadges) && userObj.extraBadges.includes(badgeId)
+}
+
+const toggleUserBadge = async (userObj, badgeId) => {
+  const current = Array.isArray(userObj.extraBadges) ? [...userObj.extraBadges] : []
+  const idx = current.indexOf(badgeId)
+  if (idx >= 0) {
+    current.splice(idx, 1)
+  } else {
+    current.push(badgeId)
+  }
+  await updateUserExtraBadges(userObj.id, current)
 }
 
 // Логіка муту і бану
@@ -735,7 +803,7 @@ const handleLogout = () => {
   font-size: 11px;
   color: #f59e0b;
   font-style: italic;
-  margin-bottom: 6px;
+  margin: 6px 0;
 }
 
 .xen-stats-table {
@@ -743,6 +811,7 @@ const handleLogout = () => {
   flex-direction: column;
   gap: 2px;
   font-size: 12px;
+  margin-top: 6px;
 }
 
 .xen-stat-row {
@@ -844,7 +913,7 @@ const handleLogout = () => {
   border: 1px solid #282d3d;
   border-radius: 12px;
   width: 100%;
-  max-width: 840px;
+  max-width: 880px;
   min-height: 450px;
   max-height: 90vh;
   overflow: hidden;
@@ -1047,7 +1116,7 @@ const handleLogout = () => {
 .u-main-col {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 7px;
 }
 
 .u-info {
@@ -1055,6 +1124,44 @@ const handleLogout = () => {
   align-items: center;
   gap: 10px;
   flex-wrap: wrap;
+}
+
+/* Чекбокси Блогер / Донатер у списку гравців */
+.extra-badges-toggles {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.badge-toggle-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #161923;
+  border: 1px solid #282e3f;
+  padding: 4px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  opacity: 0.65;
+  transition: opacity 0.15s, border-color 0.15s;
+}
+
+.badge-toggle-chip.checked,
+.badge-toggle-chip:hover {
+  opacity: 1;
+  border-color: #4b5563;
+}
+
+.badge-toggle-chip input {
+  accent-color: #ff6b00;
+  cursor: pointer;
+}
+
+.mini-extra-badge {
+  width: auto !important;
+  padding: 2px 8px !important;
+  font-size: 10px !important;
 }
 
 .status-badge {

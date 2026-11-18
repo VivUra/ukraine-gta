@@ -1,21 +1,40 @@
-export const ROLES_LIST = [
-    { key: 'player', level: 1, label: 'Гравець', cssClass: 'role-player' },
-    { key: 'moderator', level: 2, label: 'Модератор', cssClass: 'role-moderator' },
-    { key: 'sr_moderator', level: 3, label: 'Старший модератор', cssClass: 'role-sr-moderator' },
-    { key: 'jr_admin', level: 4, label: 'Мол.Адміністратор', cssClass: 'role-jr-admin' },
-    { key: 'admin', level: 5, label: 'Адміністратор', cssClass: 'role-admin' },
-    { key: 'sr_admin', level: 6, label: 'Старший Адміністратор', cssClass: 'role-sr-admin' },
-    { key: 'ka', level: 7, label: 'Куратор Адміністрації', cssClass: 'role-ka' },
-    { key: 'zga', level: 8, label: 'ЗГА', cssClass: 'role-zga' },
-    { key: 'ga', level: 9, label: 'ГА', cssClass: 'role-ga' },
-    { key: 'dev', level: 10, label: 'Розробник', cssClass: 'role-dev' },
-    { key: 'lead_dev', level: 11, label: 'Головний розробник', cssClass: 'role-lead-dev' }
-  ]
-  
-  export const getRoleInfo = (roleKey) => {
-    return ROLES_LIST.find((r) => r.key === roleKey) || ROLES_LIST[0]
+// Основна ієрархія посад (1..11) — визначає права доступу
+export const ROLES_HIERARCHY = [
+  { id: 'player', label: 'Гравець', level: 1, cssClass: 'role-player' },
+  { id: 'moderator', label: 'Модератор', level: 2, cssClass: 'role-moderator' },
+  { id: 'sr_moderator', label: 'Старший модератор', level: 3, cssClass: 'role-sr-moderator' },
+  { id: 'jr_admin', label: 'Мол. Адміністратор', level: 4, cssClass: 'role-jr-admin' },
+  { id: 'admin', label: 'Адміністратор', level: 5, cssClass: 'role-admin' },
+  { id: 'sr_admin', label: 'Ст. Адміністратор', level: 6, cssClass: 'role-sr-admin' },
+  { id: 'curator', label: 'Куратор адміністрації', level: 7, cssClass: 'role-curator' },
+  { id: 'zga', label: 'Заст. Головного Адміністратора', level: 8, cssClass: 'role-zga' },
+  { id: 'ga', label: 'Головний Адміністратор', level: 9, cssClass: 'role-ga' },
+  { id: 'spec_admin', label: 'Спец. Адміністратор', level: 10, cssClass: 'role-spec-admin' },
+  { id: 'head_dev', label: 'Головний Розробник', level: 11, cssClass: 'role-head-dev' }
+]
+
+// Незалежні статусні ролі (без привілеїв, відображаються як додаткові анімовані плашки)
+export const EXTRA_BADGE_ROLES = [
+  {
+    id: 'blogger',
+    label: 'Блогер',
+    cssClass: 'ugta-badge-blogger'
+  },
+  {
+    id: 'donater',
+    label: 'Донатер',
+    cssClass: 'ugta-badge-donater'
   }
-  
-  export const getRoleLevel = (roleKey) => {
-    return getRoleInfo(roleKey).level
-  }
+]
+
+export const getRoleInfo = (roleId) => {
+  return ROLES_HIERARCHY.find((r) => r.id === roleId) || ROLES_HIERARCHY[0]
+}
+
+export const getRoleLevel = (roleId) => {
+  return getRoleInfo(roleId).level
+}
+
+export const getExtraBadgeInfo = (badgeId) => {
+  return EXTRA_BADGE_ROLES.find((b) => b.id === badgeId) || null
+}

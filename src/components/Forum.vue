@@ -1,9 +1,7 @@
 <template>
   <section class="forum-page">
     <div class="container">
-      <!-- ========================================================= -->
-      <!-- ЕКРАН БЛОКУВАННЯ ДОСТУПУ ДО ФОРУМУ                       -->
-      <!-- ========================================================= -->
+      <!-- ЕКРАН БЛОКУВАННЯ -->
       <div v-if="isCurrentUserBanned" class="banned-screen-wrapper">
         <div class="breadcrumbs">
           <span class="crumb-current">
@@ -17,11 +15,7 @@
 
         <div class="ban-main-card">
           <Icon icon="mdi:cancel" class="ban-big-icon" />
-
-          <h1 class="ban-red-title">
-            Доступ до форуму обмежено через блокування
-          </h1>
-
+          <h1 class="ban-red-title">Доступ до форуму обмежено через блокування</h1>
           <p class="ban-details-text">
             Ви були заблоковані причини:
             <strong>{{ currentUser.banReason }}</strong>.
@@ -29,17 +23,9 @@
             <strong>{{ formatPunishDate(currentUser.banUntil) }}</strong>.
           </p>
         </div>
-
-        <div class="breadcrumbs bottom-crumbs">
-          <span class="crumb-current">
-            <Icon icon="majesticons:home" class="crumb-home-icon" /> Форуми
-          </span>
-        </div>
       </div>
 
-      <!-- ========================================================= -->
-      <!-- ОСНОВНИЙ ФОРУМ                                            -->
-      <!-- ========================================================= -->
+      <!-- ОСНОВНИЙ ФОРУМ -->
       <template v-else>
         <div class="breadcrumbs">
           <span @click="goHome" class="crumb-link">
@@ -63,6 +49,7 @@
           </template>
         </div>
 
+        <!-- ВЕРХНЯ ПАНЕЛЬ РОЗДІЛУ -->
         <div v-if="!activeTopic" class="forum-top-bar">
           <div>
             <h1 class="forum-title">
@@ -74,8 +61,18 @@
           </div>
 
           <div class="admin-controls">
+            <!-- Редагувати поточний відкритий розділ (від ЗГА 8+) -->
             <button
-              v-if="canManageNodes"
+              v-if="activeNode && canConfigureNodes"
+              class="btn-admin-secondary"
+              @click="openEditNodeModal(activeNode)"
+            >
+              <Icon icon="mdi:cog-outline" /> Налаштування розділу
+            </button>
+
+            <!-- Створити розділ або підрозділ -->
+            <button
+              v-if="canCreateSubforumHere"
               class="btn-admin-secondary"
               @click="openCreateNodeModal"
             >
@@ -83,8 +80,9 @@
               {{ activeNode ? '+ Створити підрозділ' : '+ Створити розділ' }}
             </button>
 
+            <!-- Створити тему -->
             <button
-              v-if="activeNode && canCreateTopics && !isCurrentUserMuted"
+              v-if="activeNode && canCreateTopicHere"
               class="btn-admin-primary"
               @click="isQuickTopicOpen = !isQuickTopicOpen"
             >
@@ -172,12 +170,28 @@
                 {{ getUserTitle(activeTopic.author) }}
               </div>
 
+              <!-- Основна роль -->
               <span
                 class="ugta-role-banner"
                 :class="getUserRoleInfo(activeTopic.author, activeTopic.authorRole).cssClass"
               >
                 {{ getUserRoleInfo(activeTopic.author, activeTopic.authorRole).label }}
               </span>
+
+              <!-- Незалежні статусні ролі (Блогер, Донатер) -->
+              <div
+                v-if="getUserExtraBadges(activeTopic.author).length > 0"
+                class="ugta-extra-badges-list"
+              >
+                <span
+                  v-for="badge in getUserExtraBadges(activeTopic.author)"
+                  :key="badge.id"
+                  class="ugta-extra-badge"
+                  :class="badge.cssClass"
+                >
+                  {{ badge.label }}
+                </span>
+              </div>
             </aside>
 
             <div class="post-body">
@@ -233,12 +247,28 @@
                 {{ getUserTitle(reply.author) }}
               </div>
 
+              <!-- Основна роль -->
               <span
                 class="ugta-role-banner"
                 :class="getUserRoleInfo(reply.author, reply.authorRole).cssClass"
               >
                 {{ getUserRoleInfo(reply.author, reply.authorRole).label }}
               </span>
+
+              <!-- Незалежні статусні ролі (Блогер, Донатер) -->
+              <div
+                v-if="getUserExtraBadges(reply.author).length > 0"
+                class="ugta-extra-badges-list"
+              >
+                <span
+                  v-for="badge in getUserExtraBadges(reply.author)"
+                  :key="badge.id"
+                  class="ugta-extra-badge"
+                  :class="badge.cssClass"
+                >
+                  {{ badge.label }}
+                </span>
+              </div>
             </aside>
 
             <div class="post-body">
@@ -267,9 +297,9 @@
             </div>
           </div>
 
-          <!-- ФОРМА ВІДПОВІДІ З ПОВНОЦІННИМ РЕДАКТОРОМ XENFORO -->
+          <!-- ФОРМА ВІДПОВІДІ -->
           <div
-            v-if="currentUser && !isCurrentUserMuted && (!activeTopic.isLocked || canCreateTopics)"
+            v-if="currentUser && !isCurrentUserMuted && (!activeTopic.isLocked || canPinTopics)"
             class="reply-box"
           >
             <div class="reply-avatar">
@@ -301,7 +331,7 @@
         </div>
 
         <!-- ========================================================= -->
-        <!-- РОЗДІЛИ, ПІДРОЗДІЛИ ТА СПИСОК ТЕМ                         -->
+        <!-- СПИСОК РОЗДІЛІВ, ПІДРОЗДІЛІВ ТА ТЕМ                       -->
         <!-- ========================================================= -->
         <template v-else>
           <div v-if="activeNode && currentUser && isCurrentUserMuted" class="mute-warning-banner mb-16">
@@ -312,7 +342,7 @@
             </span>
           </div>
 
-          <!-- ПІДРОЗДІЛИ -->
+          <!-- СПИСОК ПІДРОЗДІЛІВ -->
           <div v-if="childNodes.length > 0" class="sections-list">
             <div
               v-for="node in childNodes"
@@ -331,6 +361,22 @@
                   <p v-if="node.description" class="section-desc">
                     {{ node.description }}
                   </p>
+
+                  <!-- Індикатор прав доступу для адміністрації (ЗГА+) -->
+                  <div v-if="canConfigureNodes" class="node-perms-tags">
+                    <span class="perm-pill">
+                      Підрозділи:
+                      <strong>
+                        {{ node.allowSubforums === false ? 'Заборонено' : `від ${getLevelLabel(node.minSubforumLevel ?? 8)}` }}
+                      </strong>
+                    </span>
+                    <span class="perm-pill">
+                      Теми:
+                      <strong>
+                        {{ node.allowTopics === false ? 'Заборонено' : `від ${getLevelLabel(node.minTopicLevel ?? 1)}` }}
+                      </strong>
+                    </span>
+                  </div>
 
                   <div v-if="getDirectChildren(node.id).length > 0" class="subforums-grid">
                     <button
@@ -381,20 +427,29 @@
                   <span v-else class="no-posts">Немає дописів</span>
                 </div>
 
-                <button
-                  v-if="canManageNodes"
-                  class="btn-delete-icon"
-                  title="Видалити розділ"
-                  @click.stop="handleDeleteNode(node.id)"
-                >
-                  <Icon icon="mdi:trash-can-outline" />
-                </button>
+                <!-- Кнопки редагування та видалення розділу (від ЗГА 8+) -->
+                <div v-if="canConfigureNodes" class="node-admin-btns">
+                  <button
+                    class="btn-row-icon"
+                    title="Редагувати розділ та права"
+                    @click.stop="openEditNodeModal(node)"
+                  >
+                    <Icon icon="mdi:cog-outline" />
+                  </button>
+                  <button
+                    class="btn-delete-icon"
+                    title="Видалити розділ"
+                    @click.stop="handleDeleteNode(node.id)"
+                  >
+                    <Icon icon="mdi:trash-can-outline" />
+                  </button>
+                </div>
               </div>
             </div>
           </div>
 
-          <!-- ШВИДКЕ СТВОРЕННЯ ТЕМИ З РЕДАКТОРОМ XENFORO -->
-          <div v-if="activeNode && canCreateTopics && !isCurrentUserMuted" class="quick-thread-box">
+          <!-- ШВИДКЕ СТВОРЕННЯ ТЕМИ -->
+          <div v-if="activeNode && canCreateTopicHere" class="quick-thread-box">
             <div class="qt-avatar">
               <img v-if="currentUser?.avatarUrl" :src="currentUser.avatarUrl" alt="Avatar" />
               <span v-else>{{ currentUser?.nickname?.charAt(0).toUpperCase() }}</span>
@@ -433,7 +488,7 @@
                       <span>Закріпити вгорі</span>
                     </label>
 
-                    <label class="qt-lock-check">
+                    <label v-if="canPinTopics" class="qt-lock-check">
                       <input type="checkbox" v-model="newTopicLocked" />
                       <span>Закрити для відповідей</span>
                     </label>
@@ -463,7 +518,6 @@
             </div>
 
             <div v-if="currentNodeTopics.length > 0" class="threads-container">
-              <!-- ЗАКРІПЛЕНІ ТЕМИ ВГОРІ -->
               <div
                 v-for="topic in pinnedNodeTopics"
                 :key="topic.id"
@@ -541,7 +595,6 @@
                 class="pinned-divider"
               ></div>
 
-              <!-- ЗВИЧАЙНІ ТЕМИ -->
               <div
                 v-for="topic in regularNodeTopics"
                 :key="topic.id"
@@ -617,13 +670,13 @@
 
           <div v-else-if="childNodes.length === 0" class="empty-state">
             Розділів поки що немає.
-            <span v-if="canManageNodes">Натисніть «+ Створити розділ», щоб почати.</span>
+            <span v-if="canConfigureNodes">Натисніть «+ Створити розділ», щоб почати.</span>
           </div>
         </template>
       </template>
     </div>
 
-    <!-- МОДАЛКА РЕДАГУВАННЯ ПУБЛІКАЦІЇ З РЕДАКТОРОМ XENFORO -->
+    <!-- МОДАЛКА РЕДАГУВАННЯ ПУБЛІКАЦІЇ -->
     <div v-if="isEditModalOpen" class="modal-overlay" @click.self="isEditModalOpen = false">
       <div class="modal-card large-modal">
         <h3>Редагування публікації</h3>
@@ -655,7 +708,7 @@
               Закріпити публікацію вгорі розділу
             </label>
 
-            <label class="checkbox-label">
+            <label v-if="canPinTopics" class="checkbox-label">
               <input type="checkbox" v-model="editForm.isLocked" />
               Закрити тему для нових відповідей
             </label>
@@ -671,32 +724,84 @@
       </div>
     </div>
 
-    <!-- МОДАЛКА СТВОРЕННЯ РОЗДІЛУ АБО ПІДРОЗДІЛУ -->
+    <!-- МОДАЛКА СТВОРЕННЯ АБО РЕДАГУВАННЯ РОЗДІЛУ / ПІДРОЗДІЛУ (ЗГА 8+) -->
     <div v-if="isNodeModalOpen" class="modal-overlay" @click.self="isNodeModalOpen = false">
-      <div class="modal-card">
+      <div class="modal-card node-settings-modal">
         <h3>
-          {{ activeNode ? `Новий підрозділ у «${activeNode.title}»` : 'Новий головний розділ' }}
+          {{
+            nodeForm.isEdit
+              ? `Налаштування розділу «${nodeForm.title}»`
+              : activeNode
+                ? `Новий підрозділ у «${activeNode.title}»`
+                : 'Новий головний розділ'
+          }}
         </h3>
 
-        <form @submit.prevent="handleCreateNode" class="admin-form">
-          <label>Назва *</label>
+        <form @submit.prevent="handleSaveNode" class="admin-form">
+          <label>Назва розділу *</label>
           <input
-            v-model="newNodeTitle"
+            v-model="nodeForm.title"
             type="text"
-            :placeholder="activeNode ? 'Наприклад: Національна поліція України' : 'Наприклад: Державні організації'"
+            placeholder="Наприклад: Державні організації"
             required
           />
 
           <label>Короткий опис (необов'язково)</label>
           <input
-            v-model="newNodeDesc"
+            v-model="nodeForm.description"
             type="text"
-            placeholder="Наприклад: Інформація та заяви"
+            placeholder="Наприклад: Інформація, статути та заяви"
           />
 
+          <!-- БЛОК ПРАВ НА СТВОРЕННЯ ПІДРОЗДІЛІВ -->
+          <div class="perm-config-box">
+            <label class="checkbox-label bold-toggle">
+              <input type="checkbox" v-model="nodeForm.allowSubforums" />
+              Дозволити створювати підрозділи всередині
+            </label>
+
+            <div v-if="nodeForm.allowSubforums" class="perm-select-row">
+              <label>Мінімальний ранг для створення підрозділів:</label>
+              <select v-model.number="nodeForm.minSubforumLevel">
+                <option
+                  v-for="role in ROLES_HIERARCHY"
+                  :key="role.id"
+                  :value="role.level"
+                >
+                  {{ role.level }}. {{ role.label }} і вище
+                </option>
+              </select>
+            </div>
+          </div>
+
+          <!-- БЛОК ПРАВ НА СТВОРЕННЯ ТЕМ -->
+          <div class="perm-config-box">
+            <label class="checkbox-label bold-toggle">
+              <input type="checkbox" v-model="nodeForm.allowTopics" />
+              Дозволити створювати теми у цьому розділі
+            </label>
+
+            <div v-if="nodeForm.allowTopics" class="perm-select-row">
+              <label>Мінімальний ранг для створення тем:</label>
+              <select v-model.number="nodeForm.minTopicLevel">
+                <option
+                  v-for="role in ROLES_HIERARCHY"
+                  :key="role.id"
+                  :value="role.level"
+                >
+                  {{ role.level }}. {{ role.label }} і вище
+                </option>
+              </select>
+            </div>
+          </div>
+
           <div class="modal-actions">
-            <button type="button" class="btn-cancel" @click="isNodeModalOpen = false">Скасувати</button>
-            <button type="submit" class="btn-save">Створити</button>
+            <button type="button" class="btn-cancel" @click="isNodeModalOpen = false">
+              Скасувати
+            </button>
+            <button type="submit" class="btn-save">
+              {{ nodeForm.isEdit ? 'Зберегти налаштування' : 'Створити' }}
+            </button>
           </div>
         </form>
       </div>
@@ -708,7 +813,12 @@
 import { ref, reactive, computed, onMounted } from 'vue'
 import { Icon } from '@iconify/vue'
 import { currentUser } from '../authStore.js'
-import { getRoleInfo, getRoleLevel } from '../rolesConfig.js'
+import {
+  ROLES_HIERARCHY,
+  getRoleInfo,
+  getRoleLevel,
+  getExtraBadgeInfo
+} from '../rolesConfig.js'
 import { renderBbCodeHtml } from '../bbcodeParser.js'
 import RichTextEditor from './RichTextEditor.vue'
 import {
@@ -719,6 +829,7 @@ import {
   isForumLoading,
   initForumListeners,
   createNode,
+  updateNode,
   deleteNode,
   createTopic,
   updateTopic,
@@ -758,21 +869,50 @@ const formatPunishDate = (ts) => {
   })
 }
 
+const getLevelLabel = (lvl) => {
+  const found = ROLES_HIERARCHY.find((r) => r.level === Number(lvl))
+  return found ? found.label : 'Гравець'
+}
+
+// Ієрархія прав доступу
 const myLevel = computed(() => getRoleLevel(currentUser.value?.role))
-const canManageNodes = computed(() => myLevel.value >= 7)
-const canCreateTopics = computed(() => myLevel.value >= 4)
+const canConfigureNodes = computed(() => myLevel.value >= 8) // Від ЗГА (8) до Головного Розробника (11)
 const canDeleteTopics = computed(() => myLevel.value >= 3)
 const canPinTopics = computed(() => myLevel.value >= 2)
 const canDeleteReplies = computed(() => myLevel.value >= 2)
+
+const activeNodeId = ref(null)
+const activeTopicId = ref(null)
+
+const activeNode = computed(() =>
+  forumNodes.value.find((n) => n.id === activeNodeId.value) || null
+)
+
+const activeTopic = computed(() =>
+  forumTopics.value.find((t) => t.id === activeTopicId.value) || null
+)
+
+// Динамічні права на створення підрозділів і тем у поточному розділі
+const canCreateSubforumHere = computed(() => {
+  if (!currentUser.value || isCurrentUserMuted.value) return false
+  if (!activeNode.value) return myLevel.value >= 8
+  if (activeNode.value.allowSubforums === false) return false
+  const minLvl = activeNode.value.minSubforumLevel ?? 8
+  return myLevel.value >= minLvl
+})
+
+const canCreateTopicHere = computed(() => {
+  if (!activeNode.value || !currentUser.value || isCurrentUserMuted.value) return false
+  if (activeNode.value.allowTopics === false) return false
+  const minLvl = activeNode.value.minTopicLevel ?? 1
+  return myLevel.value >= minLvl
+})
 
 const canEditTopic = (topic) => {
   if (!currentUser.value || !topic) return false
   if (myLevel.value >= 2) return true
   return topic.author?.toLowerCase() === currentUser.value.nickname?.toLowerCase()
 }
-
-const activeNodeId = ref(null)
-const activeTopicId = ref(null)
 
 onMounted(() => {
   initForumListeners()
@@ -799,13 +939,13 @@ const getUserRoleInfo = (nickname, fallbackRole = 'player') => {
   return getRoleInfo(profile?.role || fallbackRole)
 }
 
-const activeNode = computed(() =>
-  forumNodes.value.find((n) => n.id === activeNodeId.value) || null
-)
-
-const activeTopic = computed(() =>
-  forumTopics.value.find((t) => t.id === activeTopicId.value) || null
-)
+// Отримання незалежних анімованих бейджів користувача (Блогер, Донатер)
+const getUserExtraBadges = (nickname) => {
+  if (!nickname) return []
+  const profile = usersByNick.value[nickname.toLowerCase()]
+  const rawList = profile?.extraBadges || []
+  return rawList.map((id) => getExtraBadgeInfo(id)).filter(Boolean)
+}
 
 const breadcrumbNodes = computed(() => {
   const path = []
@@ -889,22 +1029,53 @@ const openTopic = (topic) => {
   incrementTopicViews(topic.id)
 }
 
+// МОДАЛКА СТВОРЕННЯ / РЕДАГУВАННЯ РОЗДІЛУ ТА ЙОГО ПРАВ (ЗГА 8+)
 const isNodeModalOpen = ref(false)
-const newNodeTitle = ref('')
-const newNodeDesc = ref('')
+const nodeForm = reactive({
+  isEdit: false,
+  id: '',
+  title: '',
+  description: '',
+  allowSubforums: true,
+  minSubforumLevel: 8,
+  allowTopics: true,
+  minTopicLevel: 1
+})
 
 const openCreateNodeModal = () => {
-  newNodeTitle.value = ''
-  newNodeDesc.value = ''
+  nodeForm.isEdit = false
+  nodeForm.id = ''
+  nodeForm.title = ''
+  nodeForm.description = ''
+  nodeForm.allowSubforums = true
+  nodeForm.minSubforumLevel = 8
+  nodeForm.allowTopics = true
+  nodeForm.minTopicLevel = 1
   isNodeModalOpen.value = true
 }
 
-const handleCreateNode = async () => {
-  await createNode({
-    title: newNodeTitle.value,
-    description: newNodeDesc.value,
-    parentId: activeNodeId.value || null
-  })
+const openEditNodeModal = (node) => {
+  nodeForm.isEdit = true
+  nodeForm.id = node.id
+  nodeForm.title = node.title
+  nodeForm.description = node.description || ''
+  nodeForm.allowSubforums = node.allowSubforums !== false
+  nodeForm.minSubforumLevel = node.minSubforumLevel ?? 8
+  nodeForm.allowTopics = node.allowTopics !== false
+  nodeForm.minTopicLevel = node.minTopicLevel ?? 1
+  isNodeModalOpen.value = true
+}
+
+const handleSaveNode = async () => {
+  if (!nodeForm.title.trim()) return
+  if (nodeForm.isEdit && nodeForm.id) {
+    await updateNode(nodeForm.id, nodeForm)
+  } else {
+    await createNode({
+      ...nodeForm,
+      parentId: activeNodeId.value || null
+    })
+  }
   isNodeModalOpen.value = false
 }
 
@@ -915,6 +1086,7 @@ const handleDeleteNode = async (id) => {
   }
 }
 
+// СТВОРЕННЯ ТА РЕДАГУВАННЯ ТЕМ
 const isQuickTopicOpen = ref(false)
 const newTopicPrefix = ref('Важливо')
 const newTopicTitle = ref('')
@@ -923,7 +1095,7 @@ const newTopicLocked = ref(false)
 const newTopicPinned = ref(false)
 
 const handleCreateTopic = async () => {
-  if (!activeNodeId.value || isCurrentUserMuted.value || !newTopicContent.value.trim()) return
+  if (!activeNodeId.value || !canCreateTopicHere.value || !newTopicContent.value.trim()) return
   await createTopic({
     nodeId: activeNodeId.value,
     title: newTopicTitle.value,
@@ -1016,26 +1188,17 @@ const getPrefixClass = (prefix) => {
 </script>
 
 <style scoped>
-.forum-page {
-  padding: 28px 0 80px;
-  min-height: 78vh;
-  color: #fff;
-}
-
+.forum-page { padding: 28px 0 80px; min-height: 78vh; color: #fff; }
 .mb-16 { margin-bottom: 16px; }
 
-/* ЕКРАН БЛОКУВАННЯ */
 .banned-screen-wrapper { display: flex; flex-direction: column; gap: 16px; }
 .ban-alert-top { background: #14161e; border: 1px solid #232733; border-radius: 8px; padding: 18px 22px; font-size: 20px; color: #e5e7eb; }
 .ban-main-card { background: #14161e; border: 1px solid #232733; border-radius: 8px; padding: 46px 24px; text-align: center; display: flex; flex-direction: column; align-items: center; }
 .ban-big-icon { font-size: 165px; color: #c84b4b; margin-bottom: 18px; }
 .ban-red-title { color: #d64545; font-size: 28px; font-weight: 800; line-height: 1.25; max-width: 480px; margin: 0 0 16px; }
 .ban-details-text { color: #d1d5db; font-size: 16px; line-height: 1.6; max-width: 520px; margin: 0; }
-.ban-details-text strong { color: #ffffff; font-weight: 800; }
-.bottom-crumbs { margin-top: 4px; margin-bottom: 0; }
 .mute-warning-banner { margin-top: 20px; background: rgba(245, 158, 11, 0.12); border: 1px solid #d97706; color: #fbbf24; padding: 14px 18px; border-radius: 8px; font-size: 14px; display: flex; align-items: center; gap: 10px; }
 
-/* ХЛІБНІ КРИХТИ */
 .breadcrumbs { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; font-size: 13px; color: #8a8d98; margin-bottom: 18px; }
 .crumb-home-icon { vertical-align: -2px; margin-right: 4px; }
 .crumb-link { cursor: pointer; }
@@ -1050,7 +1213,6 @@ const getPrefixClass = (prefix) => {
 .btn-admin-primary { background: linear-gradient(90deg, #ff3b30 0%, #ff6b00 100%); color: #fff; border: none; padding: 10px 18px; border-radius: 6px; font-weight: 700; font-size: 14px; display: flex; align-items: center; gap: 6px; cursor: pointer; }
 .btn-admin-secondary { background: #1c1f2b; color: #fff; border: 1px solid #32384d; padding: 10px 18px; border-radius: 6px; font-weight: 700; font-size: 14px; display: flex; align-items: center; gap: 6px; cursor: pointer; }
 
-/* ШВИДКЕ СТВОРЕННЯ ТЕМИ */
 .quick-thread-box { display: flex; gap: 14px; background: #181a22; border: 1px solid #282d3d; border-radius: 8px; padding: 14px 16px; margin-bottom: 16px; }
 .qt-avatar { width: 40px; height: 40px; border-radius: 6px; background: linear-gradient(135deg, #ff3b30, #ff6b00); color: #fff; font-weight: 800; display: flex; align-items: center; justify-content: center; overflow: hidden; flex-shrink: 0; }
 .qt-avatar img { width: 100%; height: 100%; object-fit: cover; }
@@ -1058,9 +1220,7 @@ const getPrefixClass = (prefix) => {
 .qt-title-row { display: flex; align-items: center; gap: 10px; }
 .qt-prefix-select { background: #252936; border: 1px solid #353b4d; color: #fff; padding: 9px 12px; border-radius: 5px; font-size: 13px; font-weight: 600; outline: none; cursor: pointer; }
 .qt-title-input { flex: 1; background: #111319; border: 1px solid #2b3040; color: #fff; padding: 10px 14px; border-radius: 5px; font-size: 15px; outline: none; }
-.qt-title-input:focus { border-color: #ff6b00; }
 .qt-editor-collapse { margin-top: 12px; }
-
 .qt-footer { display: flex; justify-content: space-between; align-items: center; padding: 10px 4px 0; flex-wrap: wrap; gap: 10px; }
 .qt-checkboxes { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
 .qt-lock-check { display: flex; align-items: center; gap: 7px; font-size: 13px; color: #9ca3af; cursor: pointer; }
@@ -1068,14 +1228,19 @@ const getPrefixClass = (prefix) => {
 .btn-qt-cancel { background: #252936; border: none; color: #c5c8d4; padding: 9px 14px; border-radius: 5px; font-size: 13px; cursor: pointer; }
 .btn-qt-submit { background: linear-gradient(90deg, #ff3b30, #ff6b00); border: none; color: #fff; padding: 9px 18px; border-radius: 5px; font-weight: 700; font-size: 13px; display: flex; align-items: center; gap: 6px; cursor: pointer; }
 
-/* РОЗДІЛИ */
 .sections-list { display: flex; flex-direction: column; gap: 10px; margin-bottom: 24px; }
 .section-card { background: #14161e; border: 1px solid #232733; border-radius: 8px; padding: 18px 22px; display: flex; justify-content: space-between; align-items: center; gap: 20px; }
 .section-main { display: flex; align-items: flex-start; gap: 16px; flex: 1; }
 .section-icon { font-size: 26px; color: #8a8d98; background: #1c1f2b; padding: 12px; border-radius: 8px; display: flex; cursor: pointer; }
 .section-name { font-size: 17px; font-weight: 700; margin: 0 0 4px; color: #fff; cursor: pointer; }
 .section-name:hover { color: #ff3b30; }
-.section-desc { font-size: 13px; color: #8a8d98; margin: 0 0 8px; }
+.section-desc { font-size: 13px; color: #8a8d98; margin: 0 0 6px; }
+
+.node-perms-tags { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
+.perm-pill { background: #1a1d28; border: 1px solid #2c3244; color: #9ca3af; font-size: 11px; padding: 2px 8px; border-radius: 4px; }
+.perm-pill strong { color: #ff6b00; }
+.node-admin-btns { display: flex; align-items: center; gap: 6px; }
+
 .subforums-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 8px 16px; margin-top: 8px; }
 .subforum-link-btn { background: none; border: none; padding: 2px 0; color: #d0d3df; font-size: 13px; font-family: inherit; display: flex; align-items: center; gap: 6px; cursor: pointer; text-align: left; }
 .subforum-link-btn:hover { color: #ff6b00; text-decoration: underline; }
@@ -1089,7 +1254,6 @@ const getPrefixClass = (prefix) => {
 .last-post-meta, .no-posts { font-size: 12px; color: #6c7284; }
 .author-nick { color: #ff6b00; font-weight: 600; }
 
-/* ТЕГИ */
 .topic-prefix { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 800; margin-right: 7px; }
 .large-prefix { font-size: 13px; padding: 4px 11px; }
 .prefix-red { background: #dc2626; color: #fff; }
@@ -1099,7 +1263,6 @@ const getPrefixClass = (prefix) => {
 .prefix-gray { background: #e5e7eb; color: #111827; }
 .prefix-blue { background: #2563eb; color: #fff; }
 
-/* СПИСОК ТЕМ */
 .threads-container { background: #14161e; border: 1px solid #232733; border-radius: 8px; overflow: hidden; }
 .thread-row { display: flex; justify-content: space-between; align-items: center; padding: 13px 18px; border-bottom: 1px solid #1e222d; cursor: pointer; gap: 12px; }
 .thread-row:last-child { border-bottom: none; }
@@ -1121,7 +1284,6 @@ const getPrefixClass = (prefix) => {
 .btn-row-icon { background: #1c1f2b; border: 1px solid #2e3446; color: #9ca3af; padding: 6px; border-radius: 6px; cursor: pointer; display: flex; align-items: center; }
 .btn-row-icon:hover, .btn-row-icon.active-pin { color: #ff6b00; border-color: #ff6b00; }
 
-/* ВІДКРИТА ТЕМА */
 .thread-header-block { margin-bottom: 20px; }
 .thread-title-line { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
 .thread-main-title { font-size: 24px; margin: 0; }
@@ -1147,7 +1309,6 @@ const getPrefixClass = (prefix) => {
 .edited-note { margin-top: 14px; font-size: 11px; color: #6c7284; text-align: right; }
 .post-signature { margin-top: 18px; padding-top: 12px; border-top: 1px solid #232733; font-size: 12px; color: #8a8d98; font-style: italic; }
 
-/* СТИЛІ ДЛЯ ВІДФОРМАТОВАНИХ BB-КОДІВ У ДОПИСАХ ТА ПЕРЕДОГЛЯДІ */
 .formatted-content :deep(.bb-h1) { font-size: 24px; color: #fff; margin: 14px 0 8px; }
 .formatted-content :deep(.bb-h2) { font-size: 20px; color: #f59e0b; margin: 12px 0 6px; }
 .formatted-content :deep(.bb-h3) { font-size: 17px; color: #f59e0b; margin: 10px 0 6px; }
@@ -1183,14 +1344,34 @@ const getPrefixClass = (prefix) => {
 .empty-state { background: #14161e; border: 1px dashed #2b3040; border-radius: 8px; padding: 36px; text-align: center; color: #8a8d98; }
 
 .modal-overlay { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.85); display: flex; align-items: center; justify-content: center; z-index: 3000; padding: 16px; }
-.modal-card { background: #14161e; border: 1px solid #232733; border-radius: 10px; padding: 26px; width: 100%; max-width: 460px; max-height: 90vh; overflow-y: auto; }
+.modal-card { background: #14161e; border: 1px solid #232733; border-radius: 10px; padding: 26px; width: 100%; max-width: 480px; max-height: 90vh; overflow-y: auto; }
 .large-modal { max-width: 760px; }
+.node-settings-modal { max-width: 540px; }
 .admin-form { display: flex; flex-direction: column; gap: 12px; }
 .form-row-2 { display: grid; grid-template-columns: 180px 1fr; gap: 12px; }
 .edit-toggles-row { display: flex; gap: 20px; flex-wrap: wrap; margin-top: 4px; }
 .checkbox-label { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #e5e7eb !important; cursor: pointer; }
+.bold-toggle { font-weight: 700; color: #ffffff !important; }
 .admin-form label { font-size: 13px; color: #8a8d98; }
-.admin-form input, .admin-form select { width: 100%; background: #0b0c10; border: 1px solid #232733; border-radius: 6px; padding: 11px 14px; color: #fff; font-family: inherit; font-size: 14px; box-sizing: border-box; }
+.admin-form input[type="text"], .admin-form select { width: 100%; background: #0b0c10; border: 1px solid #232733; border-radius: 6px; padding: 11px 14px; color: #fff; font-family: inherit; font-size: 14px; box-sizing: border-box; }
+
+.perm-config-box {
+  background: #101219;
+  border: 1px solid #252a38;
+  border-radius: 8px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.perm-select-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-left: 22px;
+}
+
 .modal-actions { display: flex; justify-content: flex-end; gap: 12px; margin-top: 10px; }
 .btn-cancel { background: #232733; color: #fff; border: none; padding: 10px 18px; border-radius: 6px; cursor: pointer; }
 .btn-save { background: #ff3b30; color: #fff; border: none; padding: 10px 18px; border-radius: 6px; font-weight: 700; cursor: pointer; }
