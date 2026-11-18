@@ -42,7 +42,10 @@
       <div class="header-actions">
         <Dropdown />
 
-        <AccountDropdown v-if="currentUser" />
+        <div v-if="currentUser" class="header-user-controls">
+          <AccountDropdown />
+          <InboxAndAlerts />
+        </div>
 
         <button v-else class="btn-cabinet" type="button" @click="isAuthModalOpen = true">
           <span class="btn-icon">
@@ -67,6 +70,7 @@ import Dropdown from './Dropdown.vue';
 import HeaderSheet from './HeaderSheet.vue';
 import AuthModal from './AuthModal.vue';
 import AccountDropdown from './AccountDropdown.vue';
+import InboxAndAlerts from './InboxAndAlerts.vue';
 import { currentUser } from '../authStore.js';
 
 const isAuthModalOpen = ref(false);
@@ -150,8 +154,14 @@ const isAuthModalOpen = ref(false);
 .header-actions {
   display: flex;
   align-items: center;
-  gap: 32px;
+  gap: 20px;
   flex-shrink: 0;
+}
+
+.header-user-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
 .btn-cabinet,
@@ -202,7 +212,7 @@ const isAuthModalOpen = ref(false);
     gap: 16px;
   }
   .header-actions {
-    gap: 16px;
+    gap: 14px;
   }
 }
 

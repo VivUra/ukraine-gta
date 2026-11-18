@@ -162,6 +162,8 @@ export const assignUserRole = async (targetUserId, newRoleKey) => {
   await updateDoc(doc(db, 'users', targetUserId), {
     role: newRoleKey
   })
+  const { notifyRoleAssigned } = await import('./forumStore.js')
+  await notifyRoleAssigned(targetUserId, newRoleKey, currentUser.value?.nickname || 'Адміністрація')
 }
 
 // Видача муту або блокування гравцю (durationMinutes = 0 означає назавжди)

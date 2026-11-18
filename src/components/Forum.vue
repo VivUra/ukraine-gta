@@ -994,6 +994,15 @@ const canEditTopic = (topic) => {
 
 onMounted(() => {
   initForumListeners()
+  window.addEventListener('ugta-navigate', (e) => {
+    const { topicId, profileNick } = e.detail || {}
+    if (topicId) {
+      const found = forumTopics.value.find((t) => t.id === topicId)
+      if (found) openTopic(found)
+    } else if (profileNick) {
+      openUserProfile(profileNick, 'wall')
+    }
+  })
 })
 
 const getUserAvatar = (nickname, fallbackAvatar = '') => {
@@ -1217,20 +1226,24 @@ const openEditTopicModal = (topic) => {
 
 const handleSaveEditedTopic = async () => {
   if (!editForm.id || !editForm.title.trim() || !editForm.content.trim()) return
-  await updateTopic(editForm.id, {
-    title: editForm.title.trim(),
-    prefix: editForm.prefix,
-    content: editForm.content.trim(),
-    isPinned: editForm.isPinned,
-    isLocked: editForm.isLocked,
-    editedText: new Date().toLocaleString('uk-UA', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    })
-  })
+  await updateTopic(
+    editForm.id,
+    {
+      title: editForm.title.trim(),
+      prefix: editForm.prefix,
+      content: editForm.content.trim(),
+      isPinned: editForm.isPinned,
+      isLocked: editForm.isLocked,
+      editedText: new Date().toLocaleString('uk-UA', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      })
+    },
+    currentUser.value?.nickname || 'Адміністрація'
+  )
   isEditModalOpen.value = false
 }
 
