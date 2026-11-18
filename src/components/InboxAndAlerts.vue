@@ -456,6 +456,15 @@
     })
     convReplyText.value = ''
   }
+
+  const getNotifIcon = (type) => {
+  if (type === 'reply') return 'mdi:message-reply-text'
+  if (type === 'reaction') return 'mdi:thumb-up'
+  if (type === 'status') return 'mdi:check-decagram'
+  if (type === 'role') return 'mdi:shield-star'
+  if (type === 'wall') return 'mdi:account-edit'
+  return 'mdi:bell-ring'
+}
   </script>
   
   <style scoped>

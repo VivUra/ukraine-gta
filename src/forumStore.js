@@ -540,6 +540,94 @@ export const createReply = async ({
   }
 }
 
+export const REACTION_TYPES = [
+  { id: 'like', emoji: '👍', label: 'Лайк' },
+  { id: 'love', emoji: '❤️', label: 'Любов' },
+  { id: 'haha', emoji: '😂', label: 'Сміх' },
+  { id: 'wow', emoji: '😮', label: 'Здивування' },
+  { id: 'sad', emoji: '😢', label: 'Сум' }
+]
+
+// Поставити, змінити або зняти реакцію під темою чи відповіддю
+export const togglePostReaction = async ({
+  collectionName, // 'topics' або 'replies'
+  itemId,
+  reactionId = 'like',
+  actorNickname,
+  actorAvatar = ''
+}) => {
+  if (!itemId || !actorNickname) return
+
+  const sourceList = collectionName === 'topics' ? forumTopics.value : forumReplies.value
+  const targetItem = sourceList.find((x) => x.id === itemId)
+  if (!targetItem) return
+
+  const authorNick = targetItem.author || ''
+  if (authorNick.toLowerCase() === actorNickname.toLowerCase()) return // не можна лайкати себе
+
+  const currentReactions = Array.isArray(targetItem.reactions) ? [...targetItem.reactions] : []
+  const actorLower = actorNickname.toLowerCase()
+  const existingIdx = currentReactions.findIndex((r) => r.nickLower === actorLower)
+
+  let delta = 0
+  let shouldNotify = false
+
+  if (existingIdx !== -1) {
+    if (currentReactions[existingIdx].type === reactionId) {
+      // Повторний клік по тій самій реакції — знімаємо її
+      currentReactions.splice(existingIdx, 1)
+      delta = -1
+    } else {
+      // Зміна емодзі на інший
+      currentReactions[existingIdx] = {
+        nick: actorNickname,
+        nickLower: actorLower,
+        type: reactionId
+      }
+      delta = 0
+    }
+  } else {
+    // Нова реакція
+    currentReactions.push({
+      nick: actorNickname,
+      nickLower: actorLower,
+      type: reactionId
+    })
+    delta = 1
+    shouldNotify = true
+  }
+
+  await updateDoc(doc(db, collectionName, itemId), {
+    reactions: currentReactions
+  })
+
+  // Оновлюємо лічильник «Реакції» у профілі автора допису
+  if (delta !== 0 && authorNick) {
+    const authorUser = usersByNick.value[authorNick.toLowerCase()]
+    if (authorUser?.id) {
+      const nextCount = Math.max(0, (Number(authorUser.reactions) || 0) + delta)
+      await updateDoc(doc(db, 'users', authorUser.id), {
+        reactions: nextCount
+      })
+    }
+  }
+
+  // Надсилаємо сповіщення автору допису
+  if (shouldNotify && authorNick) {
+    const rMeta = REACTION_TYPES.find((r) => r.id === reactionId) || REACTION_TYPES[0]
+    const topicId = collectionName === 'topics' ? targetItem.id : targetItem.topicId
+    const parentTopic = forumTopics.value.find((t) => t.id === topicId)
+    await sendNotification({
+      targetNickLower: authorNick.toLowerCase(),
+      actorNickname,
+      actorAvatar,
+      type: 'reaction',
+      text: `${actorNickname} відреагував(ла) ${rMeta.emoji} (${rMeta.label}) на ваш допис у темі «${parentTopic?.title || 'Форум'}»`,
+      topicId: topicId || ''
+    })
+  }
+}
+
 export const deleteReply = async (replyId) => {
   await deleteDoc(doc(db, 'replies', replyId))
 }

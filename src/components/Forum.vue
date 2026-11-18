@@ -236,6 +236,52 @@
                   v-html="renderBbCodeHtml(activeTopic.content)"
                 ></div>
 
+                <!-- ПАНЕЛЬ РЕАКЦІЙ ГОЛОВНОГО ДОПИСУ -->
+                <div class="post-reactions-footer">
+                  <div v-if="(activeTopic.reactions || []).length > 0" class="reactions-summary-pill">
+                    <span class="reaction-emojis-stack">
+                      <span v-for="em in getUniqueEmojis(activeTopic.reactions)" :key="em">{{ em }}</span>
+                    </span>
+                    <span class="reaction-names-text">
+                      {{ formatReactionsSummary(activeTopic.reactions) }}
+                    </span>
+                  </div>
+
+                  <div
+                    v-if="currentUser && activeTopic.author?.toLowerCase() !== currentUser.nickname?.toLowerCase()"
+                    class="like-action-wrapper"
+                  >
+                    <div class="reaction-picker-popup">
+                      <button
+                        v-for="r in REACTION_TYPES"
+                        :key="r.id"
+                        type="button"
+                        class="reaction-emoji-btn"
+                        :title="r.label"
+                        @click="handleReact('topics', activeTopic.id, r.id)"
+                      >
+                        {{ r.emoji }}
+                      </button>
+                    </div>
+
+                    <button
+                      type="button"
+                      class="btn-like-post"
+                      :class="{ liked: Boolean(getMyReaction(activeTopic.reactions)) }"
+                      @click="handleReact('topics', activeTopic.id, getMyReaction(activeTopic.reactions)?.type || 'like')"
+                    >
+                      <template v-if="getMyReaction(activeTopic.reactions)">
+                        <span>{{ getReactionMeta(getMyReaction(activeTopic.reactions).type).emoji }}</span>
+                        <span>{{ getReactionMeta(getMyReaction(activeTopic.reactions).type).label }}</span>
+                      </template>
+                      <template v-else>
+                        <Icon icon="mdi:thumb-up-outline" />
+                        <span>Вподобати</span>
+                      </template>
+                    </button>
+                  </div>
+                </div>
+
                 <div v-if="activeTopic.editedText" class="edited-note">
                   Останнє редагування: {{ activeTopic.editedText }}
                 </div>
@@ -319,6 +365,52 @@
                   class="post-content formatted-content"
                   v-html="renderBbCodeHtml(reply.content)"
                 ></div>
+
+                <!-- ПАНЕЛЬ РЕАКЦІЙ ВІДПОВІДІ -->
+                <div class="post-reactions-footer">
+                  <div v-if="(reply.reactions || []).length > 0" class="reactions-summary-pill">
+                    <span class="reaction-emojis-stack">
+                      <span v-for="em in getUniqueEmojis(reply.reactions)" :key="em">{{ em }}</span>
+                    </span>
+                    <span class="reaction-names-text">
+                      {{ formatReactionsSummary(reply.reactions) }}
+                    </span>
+                  </div>
+
+                  <div
+                    v-if="currentUser && reply.author?.toLowerCase() !== currentUser.nickname?.toLowerCase()"
+                    class="like-action-wrapper"
+                  >
+                    <div class="reaction-picker-popup">
+                      <button
+                        v-for="r in REACTION_TYPES"
+                        :key="r.id"
+                        type="button"
+                        class="reaction-emoji-btn"
+                        :title="r.label"
+                        @click="handleReact('replies', reply.id, r.id)"
+                      >
+                        {{ r.emoji }}
+                      </button>
+                    </div>
+
+                    <button
+                      type="button"
+                      class="btn-like-post"
+                      :class="{ liked: Boolean(getMyReaction(reply.reactions)) }"
+                      @click="handleReact('replies', reply.id, getMyReaction(reply.reactions)?.type || 'like')"
+                    >
+                      <template v-if="getMyReaction(reply.reactions)">
+                        <span>{{ getReactionMeta(getMyReaction(reply.reactions).type).emoji }}</span>
+                        <span>{{ getReactionMeta(getMyReaction(reply.reactions).type).label }}</span>
+                      </template>
+                      <template v-else>
+                        <Icon icon="mdi:thumb-up-outline" />
+                        <span>Вподобати</span>
+                      </template>
+                    </button>
+                  </div>
+                </div>
 
                 <div v-if="getUserSignature(reply.author)" class="post-signature">
                   {{ getUserSignature(reply.author) }}
@@ -1279,6 +1371,41 @@ const getPrefixClass = (prefix) => {
   if (prefix === 'В очікуванні') return 'prefix-gray'
   return 'prefix-blue'
 }
+
+const getReactionMeta = (typeId) =>
+  REACTION_TYPES.find((r) => r.id === typeId) || REACTION_TYPES[0]
+
+const getMyReaction = (reactionsList = []) => {
+  const lower = currentUser.value?.nickname?.toLowerCase()
+  if (!lower || !Array.isArray(reactionsList)) return null
+  return reactionsList.find((r) => r.nickLower === lower) || null
+}
+
+const getUniqueEmojis = (reactionsList = []) => {
+  const set = new Set()
+  for (const r of reactionsList) {
+    set.add(getReactionMeta(r.type).emoji)
+  }
+  return Array.from(set)
+}
+
+const formatReactionsSummary = (reactionsList = []) => {
+  if (!reactionsList.length) return ''
+  const names = reactionsList.map((r) => r.nick)
+  if (names.length <= 3) return names.join(', ')
+  return `${names.slice(0, 3).join(', ')} та ще ${names.length - 3}`
+}
+
+const handleReact = async (collectionName, itemId, reactionId) => {
+  if (!currentUser.value) return
+  await togglePostReaction({
+    collectionName,
+    itemId,
+    reactionId,
+    actorNickname: currentUser.value.nickname,
+    actorAvatar: currentUser.value.avatarUrl || ''
+  })
+}
 </script>
 
 <style scoped>
@@ -1485,5 +1612,106 @@ const getPrefixClass = (prefix) => {
   .section-card, .thread-row { flex-direction: column; align-items: flex-start; }
   .thread-row-right { width: 100%; justify-content: space-between; }
   .qt-title-row, .form-row-2 { grid-template-columns: 1fr; flex-direction: column; align-items: stretch; }
+}
+
+.post-reactions-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 16px;
+  padding-top: 10px;
+  border-top: 1px solid #1e222d;
+}
+
+.reactions-summary-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  background: #1a1d28;
+  border: 1px solid #2b3040;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  color: #cbd5e1;
+}
+
+.reaction-emojis-stack {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 14px;
+}
+
+.like-action-wrapper {
+  position: relative;
+  margin-left: auto;
+}
+
+.reaction-picker-popup {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  right: 0;
+  background: #1c1f2b;
+  border: 1px solid #353b4f;
+  border-radius: 999px;
+  padding: 5px 8px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.75);
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(6px);
+  transition: all 0.16s ease;
+  z-index: 50;
+}
+
+.like-action-wrapper:hover .reaction-picker-popup {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+}
+
+.reaction-emoji-btn {
+  background: none;
+  border: none;
+  font-size: 20px;
+  padding: 3px 5px;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: transform 0.14s ease;
+}
+
+.reaction-emoji-btn:hover {
+  transform: scale(1.28);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.btn-like-post {
+  background: #1c1f2b;
+  border: 1px solid #2f3548;
+  color: #cbd5e1;
+  padding: 5px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.btn-like-post:hover {
+  border-color: #ff6b00;
+  color: #fff;
+}
+
+.btn-like-post.liked {
+  background: rgba(255, 107, 0, 0.14);
+  border-color: #ff6b00;
+  color: #ff6b00;
 }
 </style>
