@@ -10,17 +10,24 @@ import {
   onSnapshot,
   query,
   orderBy,
-  serverTimestamp
+  serverTimestamp,
+  arrayUnion
 } from 'firebase/firestore'
 
 export const forumNodes = ref([])
 export const forumTopics = ref([])
 export const forumReplies = ref([])
+export const profilePosts = ref([])
 export const allUsersList = ref([])
 export const usersByNick = ref({})
 export const isForumLoading = ref(true)
 
+let listenersInitialized = false
+
 export const initForumListeners = () => {
+  if (listenersInitialized) return
+  listenersInitialized = true
+
   onSnapshot(collection(db, 'users'), (snapshot) => {
     const map = {}
     const list = []
@@ -55,6 +62,14 @@ export const initForumListeners = () => {
   const repliesQuery = query(collection(db, 'replies'), orderBy('createdAt', 'asc'))
   onSnapshot(repliesQuery, (snapshot) => {
     forumReplies.value = snapshot.docs.map((d) => ({
+      id: d.id,
+      ...d.data()
+    }))
+  })
+
+  const profilePostsQuery = query(collection(db, 'profile_posts'), orderBy('createdAt', 'desc'))
+  onSnapshot(profilePostsQuery, (snapshot) => {
+    profilePosts.value = snapshot.docs.map((d) => ({
       id: d.id,
       ...d.data()
     }))
@@ -107,6 +122,65 @@ export const updateUserExtraBadges = async (userId, badgesArray) => {
   await updateDoc(doc(db, 'users', userId), {
     extraBadges: Array.isArray(badgesArray) ? badgesArray : []
   })
+}
+
+// Оновлення банера профілю користувача
+export const updateUserBanner = async (userId, bannerUrl) => {
+  if (!userId) return
+  await updateDoc(doc(db, 'users', userId), {
+    bannerUrl: (bannerUrl || '').trim()
+  })
+}
+
+// Записи на стіні профілю користувача
+export const createProfilePost = async ({
+  targetNickLower,
+  authorNickname,
+  authorAvatar = '',
+  authorRole = 'player',
+  content
+}) => {
+  if (!content.trim()) return
+  await addDoc(collection(db, 'profile_posts'), {
+    targetNickLower,
+    author: authorNickname,
+    authorAvatar,
+    authorRole,
+    content: content.trim(),
+    comments: [],
+    likes: [],
+    dateText: new Date().toLocaleString('uk-UA', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    }),
+    createdAt: serverTimestamp()
+  })
+}
+
+export const addProfilePostComment = async (postId, { authorNickname, authorAvatar = '', text }) => {
+  if (!postId || !text.trim()) return
+  await updateDoc(doc(db, 'profile_posts', postId), {
+    comments: arrayUnion({
+      id: Date.now().toString(),
+      author: authorNickname,
+      authorAvatar,
+      text: text.trim(),
+      dateText: new Date().toLocaleString('uk-UA', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      })
+    })
+  })
+}
+
+export const deleteProfilePost = async (postId) => {
+  await deleteDoc(doc(db, 'profile_posts', postId))
 }
 
 export const createTopic = async ({

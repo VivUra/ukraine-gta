@@ -27,638 +27,456 @@
 
       <!-- ОСНОВНИЙ ФОРУМ -->
       <template v-else>
-        <div class="breadcrumbs">
-          <span @click="goHome" class="crumb-link">
-            <Icon icon="majesticons:home" class="crumb-home-icon" /> Форуми
-          </span>
+        <!-- СТОРІНКА ПРОФІЛЮ ГРАВЦЯ (ЯК ОКРЕМА ТЕМА ЗІ СТІНОЮ ТА ДОПИСАМИ) -->
+        <UserProfileView
+          v-if="viewedProfileNick"
+          :nickname="viewedProfileNick"
+          :initial-tab="viewedProfileTab"
+          @close="viewedProfileNick = null"
+          @open-profile="(nick) => openUserProfile(nick, 'wall')"
+          @go-to-topic="jumpToTopicFromProfile"
+        />
 
-          <template v-for="node in breadcrumbNodes" :key="node.id">
-            <span class="crumb-sep">›</span>
-            <span
-              class="crumb-link"
-              :class="{ 'crumb-current': !activeTopic && node.id === activeNode?.id }"
-              @click="openNode(node)"
-            >
-              {{ node.title }}
+        <template v-else>
+          <div class="breadcrumbs">
+            <span @click="goHome" class="crumb-link">
+              <Icon icon="majesticons:home" class="crumb-home-icon" /> Форуми
             </span>
-          </template>
 
-          <template v-if="activeTopic">
-            <span class="crumb-sep">›</span>
-            <span class="crumb-current">{{ activeTopic.title }}</span>
-          </template>
-        </div>
-
-        <!-- ВЕРХНЯ ПАНЕЛЬ РОЗДІЛУ -->
-        <div v-if="!activeTopic" class="forum-top-bar">
-          <div>
-            <h1 class="forum-title">
-              {{ activeNode ? activeNode.title : 'Форум проекту Ukraine GTA' }}
-            </h1>
-            <p v-if="activeNode?.description" class="forum-subtitle">
-              {{ activeNode.description }}
-            </p>
-          </div>
-
-          <div class="admin-controls">
-            <!-- Редагувати поточний відкритий розділ (від ЗГА 8+) -->
-            <button
-              v-if="activeNode && canConfigureNodes"
-              class="btn-admin-secondary"
-              @click="openEditNodeModal(activeNode)"
-            >
-              <Icon icon="mdi:cog-outline" /> Налаштування розділу
-            </button>
-
-            <!-- Створити розділ або підрозділ -->
-            <button
-              v-if="canCreateSubforumHere"
-              class="btn-admin-secondary"
-              @click="openCreateNodeModal"
-            >
-              <Icon icon="mdi:folder-plus-outline" />
-              {{ activeNode ? '+ Створити підрозділ' : '+ Створити розділ' }}
-            </button>
-
-            <!-- Створити тему -->
-            <button
-              v-if="activeNode && canCreateTopicHere"
-              class="btn-admin-primary"
-              @click="isQuickTopicOpen = !isQuickTopicOpen"
-            >
-              <Icon icon="mdi:square-edit-outline" /> Створити тему
-            </button>
-          </div>
-        </div>
-
-        <div v-if="isForumLoading" class="empty-state">
-          Завантаження структури форуму...
-        </div>
-
-        <!-- ========================================================= -->
-        <!-- СТОРІНКА ВІДКРИТОЇ ТЕМИ                                   -->
-        <!-- ========================================================= -->
-        <div v-else-if="activeTopic" class="thread-view">
-          <div class="thread-header-block">
-            <div class="thread-title-line">
+            <template v-for="node in breadcrumbNodes" :key="node.id">
+              <span class="crumb-sep">›</span>
               <span
-                v-if="activeTopic.prefix"
-                class="topic-prefix large-prefix"
-                :class="getPrefixClass(activeTopic.prefix)"
+                class="crumb-link"
+                :class="{ 'crumb-current': !activeTopic && node.id === activeNode?.id }"
+                @click="openNode(node)"
               >
-                {{ activeTopic.prefix }}
+                {{ node.title }}
               </span>
-              <h1 class="thread-main-title">{{ activeTopic.title }}</h1>
+            </template>
+
+            <template v-if="activeTopic">
+              <span class="crumb-sep">›</span>
+              <span class="crumb-current">{{ activeTopic.title }}</span>
+            </template>
+          </div>
+
+          <!-- ВЕРХНЯ ПАНЕЛЬ РОЗДІЛУ -->
+          <div v-if="!activeTopic" class="forum-top-bar">
+            <div>
+              <h1 class="forum-title">
+                {{ activeNode ? activeNode.title : 'Форум проекту Ukraine GTA' }}
+              </h1>
+              <p v-if="activeNode?.description" class="forum-subtitle">
+                {{ activeNode.description }}
+              </p>
             </div>
 
-            <div class="thread-submeta">
-              <span><Icon icon="mdi:account" /> {{ activeTopic.author }}</span>
-              <span>•</span>
-              <span><Icon icon="mdi:clock-outline" /> {{ activeTopic.dateText }}</span>
+            <div class="admin-controls">
+              <!-- Редагувати поточний відкритий розділ (від ЗГА 8+) -->
+              <button
+                v-if="activeNode && canConfigureNodes"
+                class="btn-admin-secondary"
+                @click="openEditNodeModal(activeNode)"
+              >
+                <Icon icon="mdi:cog-outline" /> Налаштування розділу
+              </button>
 
-              <div v-if="canEditTopic(activeTopic)" class="topic-manage-bar">
-                <button
-                  type="button"
-                  class="btn-topic-tool"
-                  @click="openEditTopicModal(activeTopic)"
-                >
-                  <Icon icon="mdi:pencil-outline" /> Редагувати / Тег
-                </button>
+              <!-- Створити розділ або підрозділ -->
+              <button
+                v-if="canCreateSubforumHere"
+                class="btn-admin-secondary"
+                @click="openCreateNodeModal"
+              >
+                <Icon icon="mdi:folder-plus-outline" />
+                {{ activeNode ? '+ Створити підрозділ' : '+ Створити розділ' }}
+              </button>
 
-                <button
-                  v-if="canPinTopics"
-                  type="button"
-                  class="btn-topic-tool"
-                  :class="{ 'tool-active': activeTopic.isPinned }"
-                  @click="toggleTopicPin(activeTopic)"
-                >
-                  <Icon icon="mdi:pin" />
-                  {{ activeTopic.isPinned ? 'Відкріпити' : 'Закріпити вгорі' }}
-                </button>
-
-                <button
-                  v-if="canDeleteTopics"
-                  type="button"
-                  class="btn-delete-small"
-                  @click="handleDeleteTopic(activeTopic.id)"
-                >
-                  Видалити тему
-                </button>
-              </div>
-            </div>
-
-            <div v-if="activeTopic.isLocked" class="locked-banner">
-              <Icon icon="mdi:lock-outline" /> В цій темі не можна розміщувати нові відповіді.
+              <!-- Створити тему -->
+              <button
+                v-if="activeNode && canCreateTopicHere"
+                class="btn-admin-primary"
+                @click="isQuickTopicOpen = !isQuickTopicOpen"
+              >
+                <Icon icon="mdi:square-edit-outline" /> Створити тему
+              </button>
             </div>
           </div>
 
-          <!-- ГОЛОВНИЙ ДОПИС -->
-          <div class="post-card">
-            <aside class="post-author-sidebar">
-              <div class="author-avatar">
-                <img
-                  v-if="getUserAvatar(activeTopic.author, activeTopic.authorAvatar)"
-                  :src="getUserAvatar(activeTopic.author, activeTopic.authorAvatar)"
-                  alt="Avatar"
-                />
-                <span v-else>{{ activeTopic.author.charAt(0).toUpperCase() }}</span>
-              </div>
+          <div v-if="isForumLoading" class="empty-state">
+            Завантаження структури форуму...
+          </div>
 
-              <div class="author-name">{{ activeTopic.author }}</div>
-
-              <div v-if="getUserTitle(activeTopic.author)" class="author-custom-title">
-                {{ getUserTitle(activeTopic.author) }}
-              </div>
-
-              <!-- Основна роль -->
-              <span
-                class="ugta-role-banner"
-                :class="getUserRoleInfo(activeTopic.author, activeTopic.authorRole).cssClass"
-              >
-                {{ getUserRoleInfo(activeTopic.author, activeTopic.authorRole).label }}
-              </span>
-
-              <!-- Незалежні статусні ролі (Блогер, Донатер) -->
-              <div
-                v-if="getUserExtraBadges(activeTopic.author).length > 0"
-                class="ugta-extra-badges-list"
-              >
+          <!-- ========================================================= -->
+          <!-- СТОРІНКА ВІДКРИТОЇ ТЕМИ                                   -->
+          <!-- ========================================================= -->
+          <div v-else-if="activeTopic" class="thread-view">
+            <div class="thread-header-block">
+              <div class="thread-title-line">
                 <span
-                  v-for="badge in getUserExtraBadges(activeTopic.author)"
-                  :key="badge.id"
-                  class="ugta-extra-badge"
-                  :class="badge.cssClass"
+                  v-if="activeTopic.prefix"
+                  class="topic-prefix large-prefix"
+                  :class="getPrefixClass(activeTopic.prefix)"
                 >
-                  {{ badge.label }}
+                  {{ activeTopic.prefix }}
                 </span>
+                <h1 class="thread-main-title">{{ activeTopic.title }}</h1>
               </div>
-            </aside>
 
-            <div class="post-body">
-              <div class="post-top-meta">
-                <span>{{ activeTopic.dateText }}</span>
-                <div class="post-right-actions">
+              <div class="thread-submeta">
+                <span class="clickable-profile" @click="openUserProfile(activeTopic.author)">
+                  <Icon icon="mdi:account" /> {{ activeTopic.author }}
+                </span>
+                <span>•</span>
+                <span><Icon icon="mdi:clock-outline" /> {{ activeTopic.dateText }}</span>
+
+                <div v-if="canEditTopic(activeTopic)" class="topic-manage-bar">
                   <button
-                    v-if="canEditTopic(activeTopic)"
                     type="button"
-                    class="btn-edit-inline"
+                    class="btn-topic-tool"
                     @click="openEditTopicModal(activeTopic)"
                   >
-                    <Icon icon="mdi:pencil" /> Редагувати
+                    <Icon icon="mdi:pencil-outline" /> Редагувати / Тег
                   </button>
-                  <span class="post-number">#1</span>
+
+                  <button
+                    v-if="canPinTopics"
+                    type="button"
+                    class="btn-topic-tool"
+                    :class="{ 'tool-active': activeTopic.isPinned }"
+                    @click="toggleTopicPin(activeTopic)"
+                  >
+                    <Icon icon="mdi:pin" />
+                    {{ activeTopic.isPinned ? 'Відкріпити' : 'Закріпити вгорі' }}
+                  </button>
+
+                  <button
+                    v-if="canDeleteTopics"
+                    type="button"
+                    class="btn-delete-small"
+                    @click="handleDeleteTopic(activeTopic.id)"
+                  >
+                    Видалити тему
+                  </button>
                 </div>
               </div>
 
-              <div
-                class="post-content formatted-content"
-                v-html="renderBbCodeHtml(activeTopic.content)"
-              ></div>
-
-              <div v-if="activeTopic.editedText" class="edited-note">
-                Останнє редагування: {{ activeTopic.editedText }}
-              </div>
-
-              <div v-if="getUserSignature(activeTopic.author)" class="post-signature">
-                {{ getUserSignature(activeTopic.author) }}
+              <div v-if="activeTopic.isLocked" class="locked-banner">
+                <Icon icon="mdi:lock-outline" /> В цій темі не можна розміщувати нові відповіді.
               </div>
             </div>
-          </div>
 
-          <!-- ВІДПОВІДІ У ТЕМІ -->
-          <div
-            v-for="(reply, index) in currentTopicReplies"
-            :key="reply.id"
-            class="post-card"
-          >
-            <aside class="post-author-sidebar">
-              <div class="author-avatar secondary-avatar">
-                <img
-                  v-if="getUserAvatar(reply.author, reply.authorAvatar)"
-                  :src="getUserAvatar(reply.author, reply.authorAvatar)"
-                  alt="Avatar"
-                />
-                <span v-else>{{ reply.author.charAt(0).toUpperCase() }}</span>
-              </div>
-
-              <div class="author-name">{{ reply.author }}</div>
-
-              <div v-if="getUserTitle(reply.author)" class="author-custom-title">
-                {{ getUserTitle(reply.author) }}
-              </div>
-
-              <!-- Основна роль -->
-              <span
-                class="ugta-role-banner"
-                :class="getUserRoleInfo(reply.author, reply.authorRole).cssClass"
-              >
-                {{ getUserRoleInfo(reply.author, reply.authorRole).label }}
-              </span>
-
-              <!-- Незалежні статусні ролі (Блогер, Донатер) -->
-              <div
-                v-if="getUserExtraBadges(reply.author).length > 0"
-                class="ugta-extra-badges-list"
-              >
-                <span
-                  v-for="badge in getUserExtraBadges(reply.author)"
-                  :key="badge.id"
-                  class="ugta-extra-badge"
-                  :class="badge.cssClass"
+            <!-- ГОЛОВНИЙ ДОПИС -->
+            <div class="post-card">
+              <aside class="post-author-sidebar">
+                <div
+                  class="author-avatar clickable-profile"
+                  @click="openUserProfile(activeTopic.author)"
                 >
-                  {{ badge.label }}
+                  <img
+                    v-if="getUserAvatar(activeTopic.author, activeTopic.authorAvatar)"
+                    :src="getUserAvatar(activeTopic.author, activeTopic.authorAvatar)"
+                    alt="Avatar"
+                  />
+                  <span v-else>{{ activeTopic.author.charAt(0).toUpperCase() }}</span>
+                </div>
+
+                <div
+                  class="author-name clickable-profile"
+                  @click="openUserProfile(activeTopic.author)"
+                >
+                  {{ activeTopic.author }}
+                </div>
+
+                <div v-if="getUserTitle(activeTopic.author)" class="author-custom-title">
+                  {{ getUserTitle(activeTopic.author) }}
+                </div>
+
+                <!-- Основна роль -->
+                <span
+                  class="ugta-role-banner"
+                  :class="getUserRoleInfo(activeTopic.author, activeTopic.authorRole).cssClass"
+                >
+                  {{ getUserRoleInfo(activeTopic.author, activeTopic.authorRole).label }}
                 </span>
-              </div>
-            </aside>
 
-            <div class="post-body">
-              <div class="post-top-meta">
-                <span>{{ reply.dateText }}</span>
-                <div class="post-right-actions">
-                  <button
-                    v-if="canDeleteReplies"
-                    class="btn-delete-tiny"
-                    @click="deleteReply(reply.id)"
+                <!-- Незалежні статусні ролі (Блогер, Донатер) -->
+                <div
+                  v-if="getUserExtraBadges(activeTopic.author).length > 0"
+                  class="ugta-extra-badges-list"
+                >
+                  <span
+                    v-for="badge in getUserExtraBadges(activeTopic.author)"
+                    :key="badge.id"
+                    class="ugta-extra-badge"
+                    :class="badge.cssClass"
                   >
-                    Видалити
-                  </button>
-                  <span class="post-number">#{{ index + 2 }}</span>
+                    {{ badge.label }}
+                  </span>
+                </div>
+              </aside>
+
+              <div class="post-body">
+                <div class="post-top-meta">
+                  <span>{{ activeTopic.dateText }}</span>
+                  <div class="post-right-actions">
+                    <button
+                      v-if="canEditTopic(activeTopic)"
+                      type="button"
+                      class="btn-edit-inline"
+                      @click="openEditTopicModal(activeTopic)"
+                    >
+                      <Icon icon="mdi:pencil" /> Редагувати
+                    </button>
+                    <span class="post-number">#1</span>
+                  </div>
+                </div>
+
+                <div
+                  class="post-content formatted-content"
+                  v-html="renderBbCodeHtml(activeTopic.content)"
+                ></div>
+
+                <div v-if="activeTopic.editedText" class="edited-note">
+                  Останнє редагування: {{ activeTopic.editedText }}
+                </div>
+
+                <div v-if="getUserSignature(activeTopic.author)" class="post-signature">
+                  {{ getUserSignature(activeTopic.author) }}
                 </div>
               </div>
-
-              <div
-                class="post-content formatted-content"
-                v-html="renderBbCodeHtml(reply.content)"
-              ></div>
-
-              <div v-if="getUserSignature(reply.author)" class="post-signature">
-                {{ getUserSignature(reply.author) }}
-              </div>
             </div>
-          </div>
 
-          <!-- ФОРМА ВІДПОВІДІ -->
-          <div
-            v-if="currentUser && !isCurrentUserMuted && (!activeTopic.isLocked || canPinTopics)"
-            class="reply-box"
-          >
-            <div class="reply-avatar">
-              <img v-if="currentUser.avatarUrl" :src="currentUser.avatarUrl" alt="Avatar" />
-              <span v-else>{{ currentUser.nickname.charAt(0).toUpperCase() }}</span>
-            </div>
-            <form @submit.prevent="handleSendReply" class="reply-form">
-              <RichTextEditor
-                v-model="replyText"
-                :rows="5"
-                placeholder="Напишіть свою відповідь..."
-              />
-              <div class="reply-actions">
-                <button type="submit" class="btn-admin-primary">
-                  <Icon icon="mdi:reply" /> Відповісти
-                </button>
-              </div>
-            </form>
-          </div>
-
-          <div v-else-if="currentUser && isCurrentUserMuted" class="mute-warning-banner">
-            <Icon icon="mdi:volume-off" />
-            <span>
-              Вам видано мут (заборона писати повідомлення). Причина:
-              <strong>{{ currentUser.muteReason }}</strong>. Закінчується:
-              <strong>{{ formatPunishDate(currentUser.muteUntil) }}</strong>.
-            </span>
-          </div>
-        </div>
-
-        <!-- ========================================================= -->
-        <!-- СПИСОК РОЗДІЛІВ, ПІДРОЗДІЛІВ ТА ТЕМ                       -->
-        <!-- ========================================================= -->
-        <template v-else>
-          <div v-if="activeNode && currentUser && isCurrentUserMuted" class="mute-warning-banner mb-16">
-            <Icon icon="mdi:volume-off" />
-            <span>
-              Вам видано мут. Причина: <strong>{{ currentUser.muteReason }}</strong>.
-              Закінчується: <strong>{{ formatPunishDate(currentUser.muteUntil) }}</strong>.
-            </span>
-          </div>
-
-          <!-- СПИСОК ПІДРОЗДІЛІВ -->
-          <div v-if="childNodes.length > 0" class="sections-list">
+            <!-- ВІДПОВІДІ У ТЕМІ -->
             <div
-              v-for="node in childNodes"
-              :key="node.id"
-              class="section-card"
+              v-for="(reply, index) in currentTopicReplies"
+              :key="reply.id"
+              class="post-card"
             >
-              <div class="section-main">
-                <div class="section-icon" @click="openNode(node)">
-                  <Icon icon="mynaui:chat-messages-solid" />
+              <aside class="post-author-sidebar">
+                <div
+                  class="author-avatar secondary-avatar clickable-profile"
+                  @click="openUserProfile(reply.author)"
+                >
+                  <img
+                    v-if="getUserAvatar(reply.author, reply.authorAvatar)"
+                    :src="getUserAvatar(reply.author, reply.authorAvatar)"
+                    alt="Avatar"
+                  />
+                  <span v-else>{{ reply.author.charAt(0).toUpperCase() }}</span>
                 </div>
 
-                <div class="section-info">
-                  <h3 class="section-name" @click="openNode(node)">
-                    {{ node.title }}
-                  </h3>
-                  <p v-if="node.description" class="section-desc">
-                    {{ node.description }}
-                  </p>
+                <div
+                  class="author-name clickable-profile"
+                  @click="openUserProfile(reply.author)"
+                >
+                  {{ reply.author }}
+                </div>
 
-                  <!-- Індикатор прав доступу для адміністрації (ЗГА+) -->
-                  <div v-if="canConfigureNodes" class="node-perms-tags">
-                    <span class="perm-pill">
-                      Підрозділи:
-                      <strong>
-                        {{ node.allowSubforums === false ? 'Заборонено' : `від ${getLevelLabel(node.minSubforumLevel ?? 8)}` }}
-                      </strong>
-                    </span>
-                    <span class="perm-pill">
-                      Теми:
-                      <strong>
-                        {{ node.allowTopics === false ? 'Заборонено' : `від ${getLevelLabel(node.minTopicLevel ?? 1)}` }}
-                      </strong>
-                    </span>
-                  </div>
+                <div v-if="getUserTitle(reply.author)" class="author-custom-title">
+                  {{ getUserTitle(reply.author) }}
+                </div>
 
-                  <div v-if="getDirectChildren(node.id).length > 0" class="subforums-grid">
+                <!-- Основна роль -->
+                <span
+                  class="ugta-role-banner"
+                  :class="getUserRoleInfo(reply.author, reply.authorRole).cssClass"
+                >
+                  {{ getUserRoleInfo(reply.author, reply.authorRole).label }}
+                </span>
+
+                <!-- Незалежні статусні ролі (Блогер, Донатер) -->
+                <div
+                  v-if="getUserExtraBadges(reply.author).length > 0"
+                  class="ugta-extra-badges-list"
+                >
+                  <span
+                    v-for="badge in getUserExtraBadges(reply.author)"
+                    :key="badge.id"
+                    class="ugta-extra-badge"
+                    :class="badge.cssClass"
+                  >
+                    {{ badge.label }}
+                  </span>
+                </div>
+              </aside>
+
+              <div class="post-body">
+                <div class="post-top-meta">
+                  <span>{{ reply.dateText }}</span>
+                  <div class="post-right-actions">
                     <button
-                      v-for="sub in getDirectChildren(node.id)"
-                      :key="sub.id"
-                      type="button"
-                      class="subforum-link-btn"
-                      @click.stop="openNode(sub)"
+                      v-if="canDeleteReplies"
+                      class="btn-delete-tiny"
+                      @click="deleteReply(reply.id)"
                     >
-                      <Icon icon="mdi:message-text-outline" class="sub-icon" />
-                      {{ sub.title }}
+                      Видалити
                     </button>
+                    <span class="post-number">#{{ index + 2 }}</span>
                   </div>
                 </div>
-              </div>
 
-              <div class="section-stats">
-                <div class="stat-box">
-                  <span class="stat-label">ТЕМИ</span>
-                  <span class="stat-val">{{ getTotalTopicsCount(node.id) }}</span>
-                </div>
+                <div
+                  class="post-content formatted-content"
+                  v-html="renderBbCodeHtml(reply.content)"
+                ></div>
 
-                <div class="stat-box">
-                  <span class="stat-label">ДОПИСИ</span>
-                  <span class="stat-val">{{ getTotalPostsCount(node.id) }}</span>
-                </div>
-
-                <div class="last-post-box">
-                  <template v-if="getLatestNodeTopic(node.id)">
-                    <div
-                      class="last-post-title clickable"
-                      @click="openTopic(getLatestNodeTopic(node.id))"
-                    >
-                      <span
-                        v-if="getLatestNodeTopic(node.id).prefix"
-                        class="topic-prefix"
-                        :class="getPrefixClass(getLatestNodeTopic(node.id).prefix)"
-                      >
-                        {{ getLatestNodeTopic(node.id).prefix }}
-                      </span>
-                      {{ getLatestNodeTopic(node.id).title }}
-                    </div>
-                    <div class="last-post-meta">
-                      {{ getLatestNodeTopic(node.id).dateText }} •
-                      <span class="author-nick">{{ getLatestNodeTopic(node.id).author }}</span>
-                    </div>
-                  </template>
-                  <span v-else class="no-posts">Немає дописів</span>
-                </div>
-
-                <!-- Кнопки редагування та видалення розділу (від ЗГА 8+) -->
-                <div v-if="canConfigureNodes" class="node-admin-btns">
-                  <button
-                    class="btn-row-icon"
-                    title="Редагувати розділ та права"
-                    @click.stop="openEditNodeModal(node)"
-                  >
-                    <Icon icon="mdi:cog-outline" />
-                  </button>
-                  <button
-                    class="btn-delete-icon"
-                    title="Видалити розділ"
-                    @click.stop="handleDeleteNode(node.id)"
-                  >
-                    <Icon icon="mdi:trash-can-outline" />
-                  </button>
+                <div v-if="getUserSignature(reply.author)" class="post-signature">
+                  {{ getUserSignature(reply.author) }}
                 </div>
               </div>
             </div>
-          </div>
 
-          <!-- ШВИДКЕ СТВОРЕННЯ ТЕМИ -->
-          <div v-if="activeNode && canCreateTopicHere" class="quick-thread-box">
-            <div class="qt-avatar">
-              <img v-if="currentUser?.avatarUrl" :src="currentUser.avatarUrl" alt="Avatar" />
-              <span v-else>{{ currentUser?.nickname?.charAt(0).toUpperCase() }}</span>
-            </div>
-
-            <form @submit.prevent="handleCreateTopic" class="qt-form">
-              <div class="qt-title-row">
-                <select v-model="newTopicPrefix" class="qt-prefix-select">
-                  <option value="">Без тегу</option>
-                  <option v-for="tag in TOPIC_PREFIXES" :key="tag" :value="tag">
-                    {{ tag }}
-                  </option>
-                </select>
-
-                <input
-                  v-model="newTopicTitle"
-                  type="text"
-                  class="qt-title-input"
-                  placeholder="Заголовок теми"
-                  @focus="isQuickTopicOpen = true"
-                  required
-                />
+            <!-- ФОРМА ВІДПОВІДІ -->
+            <div
+              v-if="currentUser && !isCurrentUserMuted && (!activeTopic.isLocked || canPinTopics)"
+              class="reply-box"
+            >
+              <div
+                class="reply-avatar clickable-profile"
+                @click="openUserProfile(currentUser.nickname)"
+              >
+                <img v-if="currentUser.avatarUrl" :src="currentUser.avatarUrl" alt="Avatar" />
+                <span v-else>{{ currentUser.nickname.charAt(0).toUpperCase() }}</span>
               </div>
-
-              <div v-if="isQuickTopicOpen || newTopicTitle.length > 0" class="qt-editor-collapse">
+              <form @submit.prevent="handleSendReply" class="reply-form">
                 <RichTextEditor
-                  v-model="newTopicContent"
-                  :rows="7"
-                  placeholder="Повідомлення..."
+                  v-model="replyText"
+                  :rows="5"
+                  placeholder="Напишіть свою відповідь..."
                 />
-
-                <div class="qt-footer">
-                  <div class="qt-checkboxes">
-                    <label v-if="canPinTopics" class="qt-lock-check">
-                      <input type="checkbox" v-model="newTopicPinned" />
-                      <span>Закріпити вгорі</span>
-                    </label>
-
-                    <label v-if="canPinTopics" class="qt-lock-check">
-                      <input type="checkbox" v-model="newTopicLocked" />
-                      <span>Закрити для відповідей</span>
-                    </label>
-                  </div>
-
-                  <div class="qt-submit-group">
-                    <button
-                      type="button"
-                      class="btn-qt-cancel"
-                      @click="isQuickTopicOpen = false"
-                    >
-                      Згорнути
-                    </button>
-                    <button type="submit" class="btn-qt-submit">
-                      <Icon icon="mdi:square-edit-outline" /> Створити тему
-                    </button>
-                  </div>
+                <div class="reply-actions">
+                  <button type="submit" class="btn-admin-primary">
+                    <Icon icon="mdi:reply" /> Відповісти
+                  </button>
                 </div>
-              </div>
-            </form>
-          </div>
-
-          <!-- СПИСОК ТЕМ У РОЗДІЛІ -->
-          <div v-if="activeNode" class="threads-table-wrapper">
-            <div v-if="currentNodeTopics.length === 0 && childNodes.length === 0" class="empty-state">
-              У цьому розділі ще немає тем.
+              </form>
             </div>
 
-            <div v-if="currentNodeTopics.length > 0" class="threads-container">
+            <div v-else-if="currentUser && isCurrentUserMuted" class="mute-warning-banner">
+              <Icon icon="mdi:volume-off" />
+              <span>
+                Вам видано мут (заборона писати повідомлення). Причина:
+                <strong>{{ currentUser.muteReason }}</strong>. Закінчується:
+                <strong>{{ formatPunishDate(currentUser.muteUntil) }}</strong>.
+              </span>
+            </div>
+          </div>
+
+          <!-- ========================================================= -->
+          <!-- СПИСОК РОЗДІЛІВ, ПІДРОЗДІЛІВ ТА ТЕМ                       -->
+          <!-- ========================================================= -->
+          <template v-else>
+            <div v-if="activeNode && currentUser && isCurrentUserMuted" class="mute-warning-banner mb-16">
+              <Icon icon="mdi:volume-off" />
+              <span>
+                Вам видано мут. Причина: <strong>{{ currentUser.muteReason }}</strong>.
+                Закінчується: <strong>{{ formatPunishDate(currentUser.muteUntil) }}</strong>.
+              </span>
+            </div>
+
+            <!-- СПИСОК ПІДРОЗДІЛІВ -->
+            <div v-if="childNodes.length > 0" class="sections-list">
               <div
-                v-for="topic in pinnedNodeTopics"
-                :key="topic.id"
-                class="thread-row pinned-row"
-                @click="openTopic(topic)"
+                v-for="node in childNodes"
+                :key="node.id"
+                class="section-card"
               >
-                <div class="thread-row-left">
-                  <div class="thread-avatar">
-                    <img
-                      v-if="getUserAvatar(topic.author, topic.authorAvatar)"
-                      :src="getUserAvatar(topic.author, topic.authorAvatar)"
-                      alt="Avatar"
-                    />
-                    <span v-else>{{ topic.author.charAt(0).toUpperCase() }}</span>
+                <div class="section-main">
+                  <div class="section-icon" @click="openNode(node)">
+                    <Icon icon="mynaui:chat-messages-solid" />
                   </div>
 
-                  <div class="thread-row-info">
-                    <div class="thread-row-title">
-                      <span
-                        v-if="topic.prefix"
-                        class="topic-prefix"
-                        :class="getPrefixClass(topic.prefix)"
-                      >
-                        {{ topic.prefix }}
+                  <div class="section-info">
+                    <h3 class="section-name" @click="openNode(node)">
+                      {{ node.title }}
+                    </h3>
+                    <p v-if="node.description" class="section-desc">
+                      {{ node.description }}
+                    </p>
+
+                    <!-- Індикатор прав доступу для адміністрації (ЗГА+) -->
+                    <div v-if="canConfigureNodes" class="node-perms-tags">
+                      <span class="perm-pill">
+                        Підрозділи:
+                        <strong>
+                          {{ node.allowSubforums === false ? 'Заборонено' : `від ${getLevelLabel(node.minSubforumLevel ?? 8)}` }}
+                        </strong>
                       </span>
-                      <span class="thread-link-text">{{ topic.title }}</span>
-                      <Icon icon="mdi:pin" class="pin-icon" title="Закріплена тема" />
-                      <Icon v-if="topic.isLocked" icon="mdi:lock" class="lock-icon" />
-                    </div>
-                    <div class="thread-row-meta">
-                      <span class="author-nick">{{ topic.author }}</span> • {{ topic.dateText }}
-                    </div>
-                  </div>
-                </div>
-
-                <div class="thread-row-right">
-                  <div class="thread-counters">
-                    <div>Відповіді: <strong>{{ getTopicRepliesCount(topic.id) }}</strong></div>
-                    <div class="views-text">Перегляди: {{ topic.views || 1 }}</div>
-                  </div>
-
-                  <div v-if="canEditTopic(topic)" class="row-quick-actions" @click.stop>
-                    <button
-                      type="button"
-                      class="btn-row-icon"
-                      title="Редагувати тему / тег"
-                      @click="openEditTopicModal(topic)"
-                    >
-                      <Icon icon="mdi:pencil-outline" />
-                    </button>
-                    <button
-                      v-if="canPinTopics"
-                      type="button"
-                      class="btn-row-icon active-pin"
-                      title="Відкріпити тему"
-                      @click="toggleTopicPin(topic)"
-                    >
-                      <Icon icon="mdi:pin-off-outline" />
-                    </button>
-                    <button
-                      v-if="canDeleteTopics"
-                      type="button"
-                      class="btn-delete-icon"
-                      title="Видалити тему"
-                      @click="handleDeleteTopic(topic.id)"
-                    >
-                      <Icon icon="mdi:trash-can-outline" />
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              <div
-                v-if="pinnedNodeTopics.length > 0 && regularNodeTopics.length > 0"
-                class="pinned-divider"
-              ></div>
-
-              <div
-                v-for="topic in regularNodeTopics"
-                :key="topic.id"
-                class="thread-row"
-                @click="openTopic(topic)"
-              >
-                <div class="thread-row-left">
-                  <div class="thread-avatar">
-                    <img
-                      v-if="getUserAvatar(topic.author, topic.authorAvatar)"
-                      :src="getUserAvatar(topic.author, topic.authorAvatar)"
-                      alt="Avatar"
-                    />
-                    <span v-else>{{ topic.author.charAt(0).toUpperCase() }}</span>
-                  </div>
-
-                  <div class="thread-row-info">
-                    <div class="thread-row-title">
-                      <span
-                        v-if="topic.prefix"
-                        class="topic-prefix"
-                        :class="getPrefixClass(topic.prefix)"
-                      >
-                        {{ topic.prefix }}
+                      <span class="perm-pill">
+                        Теми:
+                        <strong>
+                          {{ node.allowTopics === false ? 'Заборонено' : `від ${getLevelLabel(node.minTopicLevel ?? 1)}` }}
+                        </strong>
                       </span>
-                      <span class="thread-link-text">{{ topic.title }}</span>
-                      <Icon v-if="topic.isLocked" icon="mdi:lock" class="lock-icon" />
                     </div>
-                    <div class="thread-row-meta">
-                      <span class="author-nick">{{ topic.author }}</span> • {{ topic.dateText }}
+
+                    <div v-if="getDirectChildren(node.id).length > 0" class="subforums-grid">
+                      <button
+                        v-for="sub in getDirectChildren(node.id)"
+                        :key="sub.id"
+                        type="button"
+                        class="subforum-link-btn"
+                        @click.stop="openNode(sub)"
+                      >
+                        <Icon icon="mdi:message-text-outline" class="sub-icon" />
+                        {{ sub.title }}
+                      </button>
                     </div>
                   </div>
                 </div>
 
-                <div class="thread-row-right">
-                  <div class="thread-counters">
-                    <div>Відповіді: <strong>{{ getTopicRepliesCount(topic.id) }}</strong></div>
-                    <div class="views-text">Перегляди: {{ topic.views || 1 }}</div>
+                <div class="section-stats">
+                  <div class="stat-box">
+                    <span class="stat-label">ТЕМИ</span>
+                    <span class="stat-val">{{ getTotalTopicsCount(node.id) }}</span>
                   </div>
 
-                  <div v-if="canEditTopic(topic)" class="row-quick-actions" @click.stop>
+                  <div class="stat-box">
+                    <span class="stat-label">ДОПИСИ</span>
+                    <span class="stat-val">{{ getTotalPostsCount(node.id) }}</span>
+                  </div>
+
+                  <div class="last-post-box">
+                    <template v-if="getLatestNodeTopic(node.id)">
+                      <div
+                        class="last-post-title clickable"
+                        @click="openTopic(getLatestNodeTopic(node.id))"
+                      >
+                        <span
+                          v-if="getLatestNodeTopic(node.id).prefix"
+                          class="topic-prefix"
+                          :class="getPrefixClass(getLatestNodeTopic(node.id).prefix)"
+                        >
+                          {{ getLatestNodeTopic(node.id).prefix }}
+                        </span>
+                        {{ getLatestNodeTopic(node.id).title }}
+                      </div>
+                      <div class="last-post-meta">
+                        {{ getLatestNodeTopic(node.id).dateText }} •
+                        <span
+                          class="author-nick clickable-profile"
+                          @click.stop="openUserProfile(getLatestNodeTopic(node.id).author)"
+                        >
+                          {{ getLatestNodeTopic(node.id).author }}
+                        </span>
+                      </div>
+                    </template>
+                    <span v-else class="no-posts">Немає дописів</span>
+                  </div>
+
+                  <!-- Кнопки редагування та видалення розділу (від ЗГА 8+) -->
+                  <div v-if="canConfigureNodes" class="node-admin-btns">
                     <button
-                      type="button"
                       class="btn-row-icon"
-                      title="Редагувати тему / тег"
-                      @click="openEditTopicModal(topic)"
+                      title="Редагувати розділ та права"
+                      @click.stop="openEditNodeModal(node)"
                     >
-                      <Icon icon="mdi:pencil-outline" />
+                      <Icon icon="mdi:cog-outline" />
                     </button>
                     <button
-                      v-if="canPinTopics"
-                      type="button"
-                      class="btn-row-icon"
-                      title="Закріпити вгорі"
-                      @click="toggleTopicPin(topic)"
-                    >
-                      <Icon icon="mdi:pin-outline" />
-                    </button>
-                    <button
-                      v-if="canDeleteTopics"
-                      type="button"
                       class="btn-delete-icon"
-                      title="Видалити тему"
-                      @click="handleDeleteTopic(topic.id)"
+                      title="Видалити розділ"
+                      @click.stop="handleDeleteNode(node.id)"
                     >
                       <Icon icon="mdi:trash-can-outline" />
                     </button>
@@ -666,12 +484,253 @@
                 </div>
               </div>
             </div>
-          </div>
 
-          <div v-else-if="childNodes.length === 0" class="empty-state">
-            Розділів поки що немає.
-            <span v-if="canConfigureNodes">Натисніть «+ Створити розділ», щоб почати.</span>
-          </div>
+            <!-- ШВИДКЕ СТВОРЕННЯ ТЕМИ -->
+            <div v-if="activeNode && canCreateTopicHere" class="quick-thread-box">
+              <div
+                class="qt-avatar clickable-profile"
+                @click="openUserProfile(currentUser.nickname)"
+              >
+                <img v-if="currentUser?.avatarUrl" :src="currentUser.avatarUrl" alt="Avatar" />
+                <span v-else>{{ currentUser?.nickname?.charAt(0).toUpperCase() }}</span>
+              </div>
+
+              <form @submit.prevent="handleCreateTopic" class="qt-form">
+                <div class="qt-title-row">
+                  <select v-model="newTopicPrefix" class="qt-prefix-select">
+                    <option value="">Без тегу</option>
+                    <option v-for="tag in TOPIC_PREFIXES" :key="tag" :value="tag">
+                      {{ tag }}
+                    </option>
+                  </select>
+
+                  <input
+                    v-model="newTopicTitle"
+                    type="text"
+                    class="qt-title-input"
+                    placeholder="Заголовок теми"
+                    @focus="isQuickTopicOpen = true"
+                    required
+                  />
+                </div>
+
+                <div v-if="isQuickTopicOpen || newTopicTitle.length > 0" class="qt-editor-collapse">
+                  <RichTextEditor
+                    v-model="newTopicContent"
+                    :rows="7"
+                    placeholder="Повідомлення..."
+                  />
+
+                  <div class="qt-footer">
+                    <div class="qt-checkboxes">
+                      <label v-if="canPinTopics" class="qt-lock-check">
+                        <input type="checkbox" v-model="newTopicPinned" />
+                        <span>Закріпити вгорі</span>
+                      </label>
+
+                      <label v-if="canPinTopics" class="qt-lock-check">
+                        <input type="checkbox" v-model="newTopicLocked" />
+                        <span>Закрити для відповідей</span>
+                      </label>
+                    </div>
+
+                    <div class="qt-submit-group">
+                      <button
+                        type="button"
+                        class="btn-qt-cancel"
+                        @click="isQuickTopicOpen = false"
+                      >
+                        Згорнути
+                      </button>
+                      <button type="submit" class="btn-qt-submit">
+                        <Icon icon="mdi:square-edit-outline" /> Створити тему
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </form>
+            </div>
+
+            <!-- СПИСОК ТЕМ У РОЗДІЛІ -->
+            <div v-if="activeNode" class="threads-table-wrapper">
+              <div v-if="currentNodeTopics.length === 0 && childNodes.length === 0" class="empty-state">
+                У цьому розділі ще немає тем.
+              </div>
+
+              <div v-if="currentNodeTopics.length > 0" class="threads-container">
+                <div
+                  v-for="topic in pinnedNodeTopics"
+                  :key="topic.id"
+                  class="thread-row pinned-row"
+                  @click="openTopic(topic)"
+                >
+                  <div class="thread-row-left">
+                    <div
+                      class="thread-avatar clickable-profile"
+                      @click.stop="openUserProfile(topic.author)"
+                    >
+                      <img
+                        v-if="getUserAvatar(topic.author, topic.authorAvatar)"
+                        :src="getUserAvatar(topic.author, topic.authorAvatar)"
+                        alt="Avatar"
+                      />
+                      <span v-else>{{ topic.author.charAt(0).toUpperCase() }}</span>
+                    </div>
+
+                    <div class="thread-row-info">
+                      <div class="thread-row-title">
+                        <span
+                          v-if="topic.prefix"
+                          class="topic-prefix"
+                          :class="getPrefixClass(topic.prefix)"
+                        >
+                          {{ topic.prefix }}
+                        </span>
+                        <span class="thread-link-text">{{ topic.title }}</span>
+                        <Icon icon="mdi:pin" class="pin-icon" title="Закріплена тема" />
+                        <Icon v-if="topic.isLocked" icon="mdi:lock" class="lock-icon" />
+                      </div>
+                      <div class="thread-row-meta">
+                        <span
+                          class="author-nick clickable-profile"
+                          @click.stop="openUserProfile(topic.author)"
+                        >
+                          {{ topic.author }}
+                        </span>
+                        • {{ topic.dateText }}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="thread-row-right">
+                    <div class="thread-counters">
+                      <div>Відповіді: <strong>{{ getTopicRepliesCount(topic.id) }}</strong></div>
+                      <div class="views-text">Перегляди: {{ topic.views || 1 }}</div>
+                    </div>
+
+                    <div v-if="canEditTopic(topic)" class="row-quick-actions" @click.stop>
+                      <button
+                        type="button"
+                        class="btn-row-icon"
+                        title="Редагувати тему / тег"
+                        @click="openEditTopicModal(topic)"
+                      >
+                        <Icon icon="mdi:pencil-outline" />
+                      </button>
+                      <button
+                        v-if="canPinTopics"
+                        type="button"
+                        class="btn-row-icon active-pin"
+                        title="Відкріпити тему"
+                        @click="toggleTopicPin(topic)"
+                      >
+                        <Icon icon="mdi:pin-off-outline" />
+                      </button>
+                      <button
+                        v-if="canDeleteTopics"
+                        type="button"
+                        class="btn-delete-icon"
+                        title="Видалити тему"
+                        @click="handleDeleteTopic(topic.id)"
+                      >
+                        <Icon icon="mdi:trash-can-outline" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <div
+                  v-if="pinnedNodeTopics.length > 0 && regularNodeTopics.length > 0"
+                  class="pinned-divider"
+                ></div>
+
+                <div
+                  v-for="topic in regularNodeTopics"
+                  :key="topic.id"
+                  class="thread-row"
+                  @click="openTopic(topic)"
+                >
+                  <div class="thread-row-left">
+                    <div
+                      class="thread-avatar clickable-profile"
+                      @click.stop="openUserProfile(topic.author)"
+                    >
+                      <img
+                        v-if="getUserAvatar(topic.author, topic.authorAvatar)"
+                        :src="getUserAvatar(topic.author, topic.authorAvatar)"
+                        alt="Avatar"
+                      />
+                      <span v-else>{{ topic.author.charAt(0).toUpperCase() }}</span>
+                    </div>
+
+                    <div class="thread-row-info">
+                      <div class="thread-row-title">
+                        <span
+                          v-if="topic.prefix"
+                          class="topic-prefix"
+                          :class="getPrefixClass(topic.prefix)"
+                        >
+                          {{ topic.prefix }}
+                        </span>
+                        <span class="thread-link-text">{{ topic.title }}</span>
+                        <Icon v-if="topic.isLocked" icon="mdi:lock" class="lock-icon" />
+                      </div>
+                      <div class="thread-row-meta">
+                        <span
+                          class="author-nick clickable-profile"
+                          @click.stop="openUserProfile(topic.author)"
+                        >
+                          {{ topic.author }}
+                        </span>
+                        • {{ topic.dateText }}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="thread-row-right">
+                    <div class="thread-counters">
+                      <div>Відповіді: <strong>{{ getTopicRepliesCount(topic.id) }}</strong></div>
+                      <div class="views-text">Перегляди: {{ topic.views || 1 }}</div>
+                    </div>
+
+                    <div v-if="canEditTopic(topic)" class="row-quick-actions" @click.stop>
+                      <button
+                        type="button"
+                        class="btn-row-icon"
+                        title="Редагувати тему / тег"
+                        @click="openEditTopicModal(topic)"
+                      >
+                        <Icon icon="mdi:pencil-outline" />
+                      </button>
+                      <button
+                        v-if="canPinTopics"
+                        type="button"
+                        class="btn-row-icon"
+                        title="Закріпити вгорі"
+                        @click="toggleTopicPin(topic)"
+                      >
+                        <Icon icon="mdi:pin-outline" />
+                      </button>
+                      <button
+                        v-if="canDeleteTopics"
+                        type="button"
+                        class="btn-delete-icon"
+                        title="Видалити тему"
+                        @click="handleDeleteTopic(topic.id)"
+                      >
+                        <Icon icon="mdi:trash-can-outline" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div v-else-if="childNodes.length === 0" class="empty-state">
+              Розділів поки що немає.
+              <span v-if="canConfigureNodes">Натисніть «+ Створити розділ», щоб почати.</span>
+            </div>
+          </template>
         </template>
       </template>
     </div>
@@ -821,6 +880,7 @@ import {
 } from '../rolesConfig.js'
 import { renderBbCodeHtml } from '../bbcodeParser.js'
 import RichTextEditor from './RichTextEditor.vue'
+import UserProfileView from './UserProfileView.vue'
 import {
   forumNodes,
   forumTopics,
@@ -883,6 +943,24 @@ const canDeleteReplies = computed(() => myLevel.value >= 2)
 
 const activeNodeId = ref(null)
 const activeTopicId = ref(null)
+
+// Стан перегляду профілю гравця
+const viewedProfileNick = ref(null)
+const viewedProfileTab = ref('wall')
+
+const openUserProfile = (nickname, tab = 'wall') => {
+  if (!nickname) return
+  viewedProfileNick.value = nickname
+  viewedProfileTab.value = tab
+}
+
+const jumpToTopicFromProfile = (topicId) => {
+  const foundTopic = forumTopics.value.find((t) => t.id === topicId)
+  viewedProfileNick.value = null
+  if (foundTopic) {
+    openTopic(foundTopic)
+  }
+}
 
 const activeNode = computed(() =>
   forumNodes.value.find((n) => n.id === activeNodeId.value) || null
@@ -1013,17 +1091,20 @@ const getTopicRepliesCount = (topicId) =>
   forumReplies.value.filter((r) => r.topicId === topicId).length
 
 const goHome = () => {
+  viewedProfileNick.value = null
   activeNodeId.value = null
   activeTopicId.value = null
 }
 
 const openNode = (node) => {
+  viewedProfileNick.value = null
   activeTopicId.value = null
   activeNodeId.value = node.id
   isQuickTopicOpen.value = false
 }
 
 const openTopic = (topic) => {
+  viewedProfileNick.value = null
   activeNodeId.value = topic.nodeId
   activeTopicId.value = topic.id
   incrementTopicViews(topic.id)
@@ -1190,6 +1271,14 @@ const getPrefixClass = (prefix) => {
 <style scoped>
 .forum-page { padding: 28px 0 80px; min-height: 78vh; color: #fff; }
 .mb-16 { margin-bottom: 16px; }
+
+.clickable-profile { cursor: pointer; }
+.author-name.clickable-profile:hover,
+.author-nick.clickable-profile:hover,
+.thread-submeta .clickable-profile:hover {
+  text-decoration: underline;
+  color: #ff6b00;
+}
 
 .banned-screen-wrapper { display: flex; flex-direction: column; gap: 16px; }
 .ban-alert-top { background: #14161e; border: 1px solid #232733; border-radius: 8px; padding: 18px 22px; font-size: 20px; color: #e5e7eb; }
